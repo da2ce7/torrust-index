@@ -45,6 +45,7 @@
 //! | [`warm_one_batch_returns_false_when_empty`] | staging | A warming step with nothing to warm reports that it did no work rather than failing or fabricating a round. The background thread drives this call in a loop, so "no work" is the signal that lets it go idle instead of spinning. |
 //! | [`warm_one_batch_incremental_progress`] | staging | Warming advances one round per step: a cell needing several rounds stays in the warming set across the intermediate calls and moves to ready only on the step that finishes it. Splitting the work this way is the whole point of deferring warm-up — the cost of bringing a new cell online is spread over many steps instead of landing inside one observation call. |
 //! | [`warm_one_batch_picks_highest_volume`] | staging | When several cells are waiting, the step spends its round on the one carrying the most traffic, leaving the quieter cell still warming. Volume is the cached importance of the backing graph node, so the cells the host is most likely to be asking about come online first, and — because a busy ancestor outweighs its own descendants — ancestors tend to arrive before the cells beneath them. |
+//! | [`warm_one_batch_warms_the_ancestor_before_the_cell_beneath_it`] | staging | Equal volumes send the round to the shallower cell, whichever identifier that cell happens to hold. The tie is the ordinary case for a path node whose whole accumulation is the single cell below it, and neither half of the identifier reading survives it. A comparison on volume alone keeps the last of the equal maxima, which is the largest identifier, and in the ordinary allocation order that is the cell beneath. Resolving the tie toward the smallest identifier instead inverts the rule the other way round, because the arena hands a freed slot out again and an ancestor can hold the larger identifier while the cell created beneath it holds the smaller. Depth is what carries the rule through both, and spending the round on the descendant lets it finish and be promoted while the chain above it is still warming — the gap the volume ordering exists to close. This step and the two drains serve one queue and must not disagree about which cell comes next. |
 //! | [`contains_checks_both_warming_and_ready`] | staging | Presence is answered across every state a staged cell can occupy: a cell still warming and a cell already waiting to be promoted both answer yes. The caller asking is deciding whether a cell needs creating, and it must not be told "absent" merely because the cell has moved on within the staging area. |
 //! | [`take_highest_priority_moves_to_in_flight`] | staging | Checking a cell out for background work takes the busiest waiting cell and marks it in flight, leaving the others warming; while it is away it still counts as present in the staging area. That is what makes the expensive noise injection safe to do without holding the lock: the main thread can see the cell is spoken for even though the warming map no longer holds it. |
 //! | [`equal_volumes_take_the_shallower_cell_first`] | staging | Equal volumes resolve to the shallower cell rather than the deeper one. A tie is the ordinary case for a pair of siblings the moment they are created, and the rule the queue exists to serve is that a busy ancestor is warmed before the cells beneath it. Identifiers cannot carry that rule on their own: the graph's arena hands a freed slot out again, so a cell created into a recycled slot holds a smaller identifier than an ancestor allocated before it. This path and the synchronous drain are two ways of serving one queue, so they must not disagree about which cell comes next. |
@@ -235,6 +236,11 @@ impl<C: Coordinate> StagingArea<C> {
     /// in [`warm_one_batch`] with graph-volume updates. The background
     /// thread uses [`take_highest_priority`] instead to avoid holding
     /// the lock during expensive noise injection.
+    ///
+    /// Ties resolve to the shallower cell and then to the smaller `GNodeId`,
+    /// the same order [`take_highest_priority`] and the synchronous drain
+    /// keep, so that an ancestor is warmed before the cells beneath it
+    /// whichever path serves the queue.
     #[allow(dead_code)] // used in tests
     pub fn warm_one_batch<V: Inspectable, const N: u32>(
         &mut self,
@@ -243,11 +249,17 @@ impl<C: Coordinate> StagingArea<C> {
         rng: &mut SmallRng,
     ) -> bool {
         // Find the highest-priority warming cell.
-        let Some((&gnode, _)) = self
-            .warming
-            .iter()
-            .max_by(|(_, a), (_, b)| a.volume.partial_cmp(&b.volume).unwrap_or(std::cmp::Ordering::Equal))
-        else {
+        let Some((&gnode, _)) = self.warming.iter().max_by(|(a_gnode, a), (b_gnode, b)| {
+            a.volume
+                .partial_cmp(&b.volume)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                // Reversed, because `max_by` keeps the last of equal maxima
+                // and the map iterates in ascending id order: comparing
+                // backwards makes the shallowest cell — and among cells of
+                // one depth, the smallest id — the maximum.
+                .then_with(|| b.cell.depth.cmp(&a.cell.depth))
+                .then_with(|| b_gnode.cmp(a_gnode))
+        }) else {
             return false;
         };
 
@@ -827,6 +839,71 @@ mod tests {
         assert!(staging.ready.iter().any(|(g, _)| *g == right));
         assert_eq!(staging.warming_count(), 1);
         assert!(staging.warming.contains_key(&left));
+    }
+
+    /// Equal volumes send the round to the shallower cell, whichever
+    /// identifier that cell happens to hold. The tie is the ordinary case for
+    /// a path node whose whole accumulation is the single cell below it, and
+    /// neither half of the identifier reading survives it. A comparison on
+    /// volume alone keeps the last of the equal maxima, which is the largest
+    /// identifier, and in the ordinary allocation order that is the cell
+    /// beneath. Resolving the tie toward the smallest identifier instead
+    /// inverts the rule the other way round, because the arena hands a freed
+    /// slot out again and an ancestor can hold the larger identifier while
+    /// the cell created beneath it holds the smaller. Depth is what carries
+    /// the rule through both, and spending the round on the descendant lets
+    /// it finish and be promoted while the chain above it is still warming —
+    /// the gap the volume ordering exists to close. This step and the two
+    /// drains serve one queue and must not disagree about which cell comes
+    /// next.
+    ///
+    /// ´claim:staging:equal-volumes-send-the-round-to-the-shallower-cell-whichever-identifier-it-holds´
+    /// ´test:unit:warm-one-batch-warms-the-ancestor-before-the-cell-beneath-it´
+    #[test]
+    fn warm_one_batch_warms_the_ancestor_before_the_cell_beneath_it() {
+        use rand::SeedableRng;
+
+        let (graph, _, left, right) = split_graph();
+        let (smaller, larger) = if left < right { (left, right) } else { (right, left) };
+        let mut rng = SmallRng::seed_from_u64(42);
+
+        // The ordinary allocation order: the ancestor exists first and holds
+        // the smaller identifier, so the cell beneath it holds the larger —
+        // which is the one a comparison on volume alone keeps.
+        let mut ordinary = StagingArea::<u128>::new();
+        ordinary.enqueue(smaller, make_cell(1), 1);
+        ordinary.enqueue(larger, make_cell(2), 1);
+        ordinary.warming.get_mut(&smaller).unwrap().volume = 42.0;
+        ordinary.warming.get_mut(&larger).unwrap().volume = 42.0;
+
+        assert!(ordinary.warm_one_batch(&graph, 64, &mut rng));
+        assert!(
+            ordinary.ready.iter().any(|(g, _)| *g == smaller),
+            "the ancestor must take the round and reach the ready queue"
+        );
+        assert!(
+            ordinary.warming.contains_key(&larger),
+            "the cell beneath the ancestor must still be warming"
+        );
+
+        // The same pair with the identifiers the other way round, which is
+        // what a recycled arena slot produces. An identifier tie-break alone
+        // resolves this one the wrong way; depth resolves both.
+        let mut recycled = StagingArea::<u128>::new();
+        recycled.enqueue(larger, make_cell(1), 1);
+        recycled.enqueue(smaller, make_cell(2), 1);
+        recycled.warming.get_mut(&larger).unwrap().volume = 42.0;
+        recycled.warming.get_mut(&smaller).unwrap().volume = 42.0;
+
+        assert!(recycled.warm_one_batch(&graph, 64, &mut rng));
+        assert!(
+            recycled.ready.iter().any(|(g, _)| *g == larger),
+            "the ancestor must take the round whichever identifier it holds"
+        );
+        assert!(
+            recycled.warming.contains_key(&smaller),
+            "the cell beneath the ancestor must still be warming"
+        );
     }
 
     /// Presence is answered across every state a staged cell can occupy: a
