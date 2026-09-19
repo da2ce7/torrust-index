@@ -155,14 +155,31 @@ fn a_failed_warming_worker_still_brings_every_cell_online() {
         max_rank: 1,
         noise_batch_size: 1,
         noise_schedule: NoiseSchedule::Explicit(vec![0, 2]),
-        background_warming: true,
+        background_warming: false,
         noise_seed: Some(7),
         ..SentinelConfig::default()
     };
-    let mut sentinel = SpectralSentinel::<u64, u64, 16>::new(config).expect("the environment must grant a warming thread");
+    let mut sentinel = SpectralSentinel::<u64, u64, 16>::new(config).expect("the test configuration must be valid");
+
+    // The state the strand needs — a cell below the root that is online, so
+    // that killing a worker can take it off the producing set — is built here
+    // rather than waited for. The analysis set is a function of the value
+    // stream alone, so these eight batches decide which cells the selector
+    // names on every machine; what differs between the two warming modes is
+    // only whether those cells are online yet. With no worker the drain runs
+    // inside the reconciliation, so each call returns with every cell the
+    // schedule asks for already promoted, where a worker would have brought
+    // them online whenever it was next scheduled — and on a machine with few
+    // cores, that can be after this loop.
     for step in 0..8_u64 {
         sentinel.ingest(&[step * 4_096]);
     }
+
+    // The worker exists from here, so the strand below is a real one: the
+    // failure it induces runs through the worker's own poisoned-staging path,
+    // and the recovery measured afterwards is the one that follows a worker
+    // that died holding a cell.
+    sentinel.start_a_warming_worker_for_test();
 
     let stranded = sentinel.strand_a_cell_on_a_failed_warming_worker_for_test();
     assert!(

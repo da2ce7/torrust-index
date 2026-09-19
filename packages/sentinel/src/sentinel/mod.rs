@@ -699,6 +699,40 @@ where
         &self.config
     }
 
+    /// Give the sentinel a live warming worker, leaving it in the state
+    /// construction produces for a configuration that asked for one.
+    ///
+    /// The warm-up dispatch keys on whether a worker is present, so the two
+    /// modes are a property of this sentinel at a given moment rather than of
+    /// its whole life, and a test that needs both can cross between them at a
+    /// point it chooses. Crossing late is what lets a test build its starting
+    /// state instead of waiting for one: without a worker the drain runs
+    /// inside `ingest`, so every cell the schedule asks for is online by the
+    /// time the call returns, on any machine and at any speed, where the same
+    /// cells under a worker come online whenever that worker is next
+    /// scheduled. The configuration flag moves with the handle, because it is
+    /// what `reset` reads to decide whether to spawn again, and a flag that
+    /// disagreed with the field would make reset the one call that silently
+    /// changed the mode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sentinel already owns a worker, which is not a state the
+    /// engine can reach and so is a caller that has not built the situation it
+    /// means to test, or if the environment refuses the thread.
+    #[cfg(test)]
+    pub(crate) fn start_a_warming_worker_for_test(&mut self) {
+        assert!(
+            self.warming_thread.is_none(),
+            "the test sentinel must not already own a warming worker"
+        );
+        self.config.background_warming = true;
+        self.warming_thread = Some(
+            warming_thread::WarmingThreadHandle::<C>::spawn(&self.staging, self.config.noise_batch_size, self.config.noise_seed)
+                .expect("the environment must grant a warming thread"),
+        );
+    }
+
     /// Fail the warming worker, wait until its join handle records the
     /// failure, and clear the deliberately poisoned staging lock so tests can
     /// isolate the failed-worker path.
