@@ -239,6 +239,18 @@ impl SubspaceTracker {
         };
         drop(p1_guard);
 
+        // ── Snapshot the model that scored this batch ────
+        // Phase 2 replaces the subspace and Phase 5 adapts the rank, and
+        // both prepare the next batch rather than describing this one. Every
+        // model figure the report carries is therefore read here, while the
+        // state is still the state the scores were computed against: read
+        // afterwards, the energy ratio would divide the evolved sigmas by
+        // this batch's rank and the leading singular value would belong to a
+        // model that has not scored anything yet.
+        let scoring_rank = k;
+        let scoring_energy_ratio = self.energy_ratio();
+        let scoring_top_singular_value = self.top_singular_value();
+
         // ── Phase 2: Evolve subspace (streaming SVD) ─────
         // Uses the maths module dispatch: the selected SvdStrategy
         // runs, and in debug builds the other strategy also runs
@@ -317,11 +329,6 @@ impl SubspaceTracker {
             k >= 2,
         );
 
-        // The report describes the geometry that produced this batch's
-        // scores. Rank adaptation below prepares the next batch.
-        let scoring_rank = k;
-        let scoring_energy_ratio = self.energy_ratio();
-
         // ── Phase 5: Adapt rank ─────────────────────────
         self.step += 1;
         if self.step.is_multiple_of(self.rank_update_interval) {
@@ -335,7 +342,7 @@ impl SubspaceTracker {
             depth,
             rank: scoring_rank,
             energy_ratio: scoring_energy_ratio,
-            top_singular_value: self.sigmas.first().copied().unwrap_or(0.0),
+            top_singular_value: scoring_top_singular_value,
             scores: AnomalyScores {
                 novelty: novelty_dist,
                 displacement: displacement_dist,

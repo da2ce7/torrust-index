@@ -28,6 +28,7 @@
 //! | [`rank_stays_bounded_by_max_rank`] | subspace | However long a cell runs and however strongly its traffic is structured, rank stays within a floor of one axis and the ceiling it was built with. The ceiling is what bounds the cost of every later step — the work per batch grows with rank — and the floor is what keeps a model from disappearing entirely during a quiet stretch and having to be rebuilt from nothing. |
 //! | [`rank_acquires_buffer_dimension`] | subspace | A cell keeps one axis more than the energy threshold strictly demands. Fed a single dominant pattern, the leading direction alone already captures the required share, yet the model settles at two directions rather than one. The spare axis is where a genuinely new direction first shows up: without it, novel structure would have to displace the established pattern before the model could represent it at all, and the arrival would be invisible until it was already dominant. |
 //! | [`energy_ratio_and_top_singular_value_evolve`] | subspace | A model that has been fed traffic reports a leading direction with real strength behind it and an energy share that is positive and cannot exceed the whole. The share is what the claimed axes explain out of everything the model holds, so it is bounded above by construction, and a leading value at zero would mean the model had learned nothing — the two figures together are how a host reads whether a cell's model has substance. |
+//! | [`report_energy_figures_describe_the_model_that_scored_the_batch`] | subspace | The energy share and leading singular value a report carries belong to the model that scored the batch, not to the model the batch left behind. Both are read off the same sigmas, and the batch replaces those sigmas before the report is assembled, so a figure read afterwards would describe a model that has not scored anything yet — and the energy share read afterwards is not even that, but the evolved sigmas divided by the rank that scored, a pairing no model ever held. The rank and the geometry beside them already describe the scoring model, so a host reading one report would be comparing an energy share against a rank drawn from a different moment. |
 //! | [`cusum_allowance_is_invariant_to_eps`] | subspace | Changing the denominator stability constant does not change a novelty CUSUM trajectory. The allowance belongs to the slow baseline variance alone, so two otherwise identical trackers accumulate the same drift even when their configured stability constants differ by the scale of that variance. |
 //! | [`cusum_reset_zeroes_steps`] | subspace | Clearing a cell's drift evidence restarts the count of batches that evidence was gathered over, so the very next batch is the first step of a new run rather than the next of an old one. Accumulated drift is only interpretable against how long it took to accumulate, and a fresh sum read against a stale count would look like a sudden collapse in drift rather than a deliberate acknowledgement of it. |
 //! | [`seed_cusum_slow_from_baselines_then_reset`] | subspace | Finishing warm-up is a two-step handover applied to every axis at once: the long-memory reference is seeded from the short-memory one that has already converged on the injected traffic, and only then is the evidence cleared. Done in that order, drift detection resumes from a state where the two references agree, so the first real batches are scored against a reference that is already current instead of registering the warm-up's own leftover gap as drift for as long as the slow memory takes to catch up. |
@@ -748,6 +749,72 @@ fn energy_ratio_and_top_singular_value_evolve() {
     assert!(
         report.top_singular_value > 0.0,
         "top_singular_value should be positive after training",
+    );
+}
+
+/// The energy share and leading singular value a report carries belong to the model that scored the batch, not to the model the batch left behind. Both are read off the same sigmas, and the batch replaces those sigmas before the report is assembled, so a figure read afterwards would describe a model that has not scored anything yet — and the energy share read afterwards is not even that, but the evolved sigmas divided by the rank that scored, a pairing no model ever held. The rank and the geometry beside them already describe the scoring model, so a host reading one report would be comparing an energy share against a rank drawn from a different moment.
+///
+/// ´claim:subspace:the-reported-energy-share-and-leading-value-belong-to-the-model-that-scored-the-batch´
+/// ´test:crate:report-energy-figures-describe-the-model-that-scored-the-batch´
+#[test]
+fn report_energy_figures_describe_the_model_that_scored_the_batch() {
+    let cfg = SentinelConfig {
+        max_rank: 4,
+        // No adaptation step falls inside this test, so the rank is constant
+        // throughout and every difference measured below is the subspace
+        // evolution's alone.
+        rank_update_interval: 1000,
+        noise_schedule: NoiseSchedule::Explicit(Vec::new()),
+        ..cfg_no_per_sample()
+    };
+    let mut tracker = SubspaceTracker::new(8, &cfg, 0.999);
+
+    // Teach one direction, so the single claimed axis holds nearly all the
+    // energy the model has and a batch off that axis has somewhere visible to
+    // move the share to.
+    let familiar = centred_rows(&[0x0000_0000_0000_0000_0000_0000_0000_0000; 4], 8);
+    for _ in 0..20 {
+        tracker.observe(&as_slices(&familiar), 8, false);
+    }
+
+    // The model as it stands is the model the next batch will be scored
+    // against, so these are the figures that batch's report must carry.
+    let scoring_energy_ratio = tracker.energy_ratio();
+    let scoring_top_singular_value = tracker.top_singular_value();
+
+    // The leading eight bits alternate where the familiar pattern was
+    // constant, which is orthogonal to it, so this batch puts energy into
+    // directions outside the claimed rank.
+    let novel = centred_rows(&[0xAAAA_AAAA_AAAA_AAAA_AAAA_AAAA_AAAA_AAAA; 4], 8);
+    let report = tracker.observe(&as_slices(&novel), 8, false);
+
+    assert_eq!(
+        report.energy_ratio.to_bits(),
+        scoring_energy_ratio.to_bits(),
+        "the reported energy share must be the share the scoring model held"
+    );
+    assert_eq!(
+        report.top_singular_value.to_bits(),
+        scoring_top_singular_value.to_bits(),
+        "the reported leading value must be the value the scoring model held"
+    );
+
+    // Both equalities would hold for the wrong reason against a model the
+    // batch had left untouched, so the evolution has to be shown to have
+    // happened at all.
+    assert!(
+        tracker.energy_ratio() < scoring_energy_ratio,
+        "the batch must move energy outside the claimed rank for the reported share to be worth checking"
+    );
+    assert_ne!(
+        tracker.top_singular_value().to_bits(),
+        scoring_top_singular_value.to_bits(),
+        "the batch must move the leading value for the reported one to be worth checking"
+    );
+    assert_eq!(
+        report.rank,
+        tracker.rank(),
+        "no adaptation step falls here, so the scoring rank is still the current one"
     );
 }
 
