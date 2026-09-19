@@ -153,7 +153,7 @@ pub struct BatchReport<C: Copy + Debug> {
 | `analysis_set_summary`          | Summary of investment/producing sets                     |
 | `oldest_observation_age_micros` | Age of the batch's oldest observation at report emission, in microseconds; absent where there is none |
 
-All vector fields are ordered by `GNodeId` for deterministic output (ADR-S-005).
+The vector fields are ordered deterministically (ADR-S-005), but not all by the same key. `cell_reports` and `ancestor_reports` are ordered by ascending `GNodeId`: both come from one walk of the cell map, which is keyed by handle, and partitioning that walk into the competitive and ancestor-only halves preserves its order within each. `coordination_reports` is ordered by ascending depth first, and by ascending `GNodeId` only among contexts of equal depth — so the root leads rather than trails, which the emitting walk's own post-order would otherwise have produced. A consumer that assumes one handle ordering across all three, or that merges them and re-sorts on handle alone, loses the depth ordering the coordination vector carries.
 
 `oldest_observation_age_micros` is a duration on the sentinel's own monotonic clock — stamped as the batch arrives, read off as the report is assembled — and never a wall-clock instant, so it carries no cross-machine skew. A batch arrives whole, so the single figure bounds every observation in it. `None` is reported both for a batch that carried no observations and for a payload written before the field existed: neither carries a measurement, and a zero would claim one. The field deserialises with `#[serde(default)]`, so older payloads read back unchanged. How long the host held the observations before handing them over is not included and is deliberately unmeasured (`sec:sentinel:algorithm-output-observation-age`).
 
@@ -725,6 +725,44 @@ Methods:
 
 The root is always an ancestor, never competitive (§ALGO S-4.7).
 
+### §5.5 `CentredBitSource` and `CentredBits` · `sec:sentinel:api-centred-bit-types`
+
+The observation boundary: how a coordinate value becomes the vector a tracker models (§ALGO S-2.3). Both items are re-exported from the crate root and are public surface, though the `observation` module that defines them is not (§6).
+
+#### `CentredBitSource` · `sec:sentinel:api-centred-bit-source`
+
+Bridge trait converting a coordinate value into centred bit form. It is implemented here for `u128` and `u64`, and the set of implementations is open: a downstream coordinate type may implement it for its own width (ADR-S-018). What is not open is the width such an implementation can serve — every conversion returns a `CentredBits`, whose backing array is fixed at 128 slots, so a coordinate type wider than that has no vector to return past its first 128 bits.
+
+```rust
+pub trait CentredBitSource: Coordinate {
+    fn to_centred_bits(&self, n: u32) -> CentredBits;
+}
+```
+
+| Method                                     | Promise                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `to_centred_bits(&self, n: u32)`           | Returns this value's leading bits in centred form, most significant first. `n` is a request rather than a promise: the effective width — which is also the length of the vector returned — is `n` capped at the width the implementing type holds, 128 for `u128` and 64 for `u64`. The implementation applies the cap rather than trusting the caller, so no caller can provoke a panic by asking for a width the domain does not hold; at `n = 0` the returned vector is empty. |
+
+#### `CentredBits` — `Clone` · `sec:sentinel:api-centred-bits`
+
+A coordinate value converted to a centred bit vector: bit `1` becomes `+0.5` and bit `0` becomes `−0.5`, so the encoded levels are symmetric about zero (§ALGO S-2.3). The backing array is fixed at 128 slots, which is the crate's coordinate-width ceiling rather than an implementation detail: a centred bit is never zero, so the slots past the vector's length stay distinguishable from data.
+
+```rust
+pub struct CentredBits {
+    pub bits: [f64; 128],
+    // Runtime length; private.
+}
+```
+
+| Item                                       | Promise                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bits`                                     | The centred values, most significant bit at index 0. Only the first `len()` entries carry a bit; the rest are zero-filled.                                                                                                                                                                            |
+| `new(bits: [f64; 128], len: usize) -> Self`| Builds a vector from centred values already computed, with `len` of them meaningful — the constructor an implementation of `CentredBitSource` outside this crate returns through. Slots from `len` onward are the caller's to leave at zero. **Panics** if `len` exceeds 128, the size of the backing array. |
+| `len(&self) -> usize`                      | How many of the backing array's slots carry a centred bit.                                                                                                                                                                                                                                            |
+| `is_empty(&self) -> bool`                  | Whether the vector carries no bits at all — the zero-width domain, and exactly `len() == 0`.                                                                                                                                                                                                          |
+| `from_u128(value: u128) -> Self`           | The full 128-bit conversion of a `u128`, identical to `value.to_centred_bits(128)`.                                                                                                                                                                                                                   |
+| `suffix(&self, depth: u8) -> &[f64]`       | The bits from `depth` to `len()` — the working observation for a cell at G-tree depth `depth`, of width `len() - depth`, the leading `depth` bits being constant within that cell and already resolved by routing (§ALGO S-3.2). At depth 0 this is the whole vector; at `depth == len()` it is empty. **Panics** if `depth` exceeds `len()`. |
+
 ---
 
 ## §6. Surface 3 — Internal Machinery · `sec:sentinel:api-internal-machinery`
@@ -739,7 +777,7 @@ The root is always an ancestor, never competitive (§ALGO S-4.7).
 | `sentinel::warming_thread`| Background noise injection thread (§ALGO S-18.2)      |
 | `maths`                   | SVD (naive + Brand), matrix ops, Gamma distribution   |
 | `ewma`                    | `EwmaStats` — exponential moving average with clipping|
-| `observation`             | `CentredBits`, `CentredBitSource` — suffix encoding   |
+| `observation`             | Suffix encoding. The module is crate-private, but the `CentredBits` and `CentredBitSource` it defines are re-exported at the crate root and are public surface (§5.5) |
 
 These modules implement the internal machinery. Their interfaces may change without notice. Only types re-exported from the crate root are part of the public API.
 
@@ -756,19 +794,37 @@ These modules implement the internal machinery. Their interfaces may change with
 
 #### `ConfigError` variants · `sec:sentinel:api-config-error-variants`
 
-| Variant                        | Constraint violated                           |
-| ------------------------------ | --------------------------------------------- |
-| `MaxRankZero`                  | `max_rank` must be ≥ 1                        |
-| `ForgettingFactorOutOfRange`   | `forgetting_factor` must be in `(0.0, 1.0)`   |
-| `RankUpdateIntervalZero`       | `rank_update_interval` must be ≥ 1            |
-| `AnalysisKZero`                | `analysis_k` must be ≥ 1                      |
-| `EnergyThresholdOutOfRange`    | `energy_threshold` must be in `(0.0, 1.0)`    |
-| `EpsNotFinite`                 | `eps` must be finite                          |
-| `EpsNotPositive`               | `eps` must be positive                        |
-| `CusumSlowDecayOutOfRange`     | `cusum_slow_decay` must be in `(0.0, 1.0)`    |
-| `CusumSlowDecayTooLow`         | `cusum_slow_decay` must be > `forgetting_factor` |
-| `DEvictNotGreaterThanDCreate`  | `d_evict` must be > `d_create`                |
-| `BudgetTooSmall`               | `budget` must exceed mudlark's headroom       |
+| Variant                              | Constraint violated                                                                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MaxRankZero`                        | `max_rank` must be ≥ 1                                                                                                                                           |
+| `ForgettingFactorOutOfRange`         | `forgetting_factor` must be in `(0.0, 1.0)`                                                                                                                      |
+| `RankUpdateIntervalZero`             | `rank_update_interval` must be ≥ 1                                                                                                                               |
+| `AnalysisKZero`                      | `analysis_k` must be ≥ 1                                                                                                                                         |
+| `EnergyThresholdOutOfRange`          | `energy_threshold` must be in `(0.0, 1.0)`                                                                                                                       |
+| `EpsNotFinite`                       | `eps` must be finite                                                                                                                                             |
+| `EpsNotPositive`                     | `eps` must be positive; checked only once `eps` is known finite, so a non-finite value raises the variant above and not this one                                  |
+| `CusumSlowDecayOutOfRange`           | `cusum_slow_decay` must be in `(0.0, 1.0)`                                                                                                                       |
+| `CusumSlowDecayTooLow`               | `cusum_slow_decay` must be > `forgetting_factor`                                                                                                                 |
+| `CusumCoordSlowDecayOutOfRange`      | `cusum_coord_slow_decay` must be in `(0.0, 1.0)`                                                                                                                 |
+| `CusumCoordSlowDecayTooLow`          | `cusum_coord_slow_decay` must be > `forgetting_factor` — the coordination tier's slow memory is compared against the same fast memory as the per-cell tier's      |
+| `CusumAllowanceNegative`             | `cusum_allowance_sigmas` must be ≥ 0                                                                                                                             |
+| `ClipSigmasNotPositive`              | `clip_sigmas` must be positive                                                                                                                                   |
+| `ClipPressureDecayOutOfRange`        | `clip_pressure_decay` must be in `(0.0, 1.0)`                                                                                                                    |
+| `SplitThresholdNotPositive`          | `split_threshold` must be positive, judged on its `f64` reading                                                                                                  |
+| `DCreateZero`                        | `d_create` must be ≥ 1                                                                                                                                           |
+| `DEvictNotGreaterThanDCreate`        | `d_evict` must be > `d_create`                                                                                                                                   |
+| `BudgetZero`                         | `budget` must be ≥ 1                                                                                                                                             |
+| `BudgetTooSmall`                     | `budget` must exceed the headroom the depth pair implies — three raised to the gap between the depths plus one, or twice the creation depth less one, whichever is larger. Checked only where `budget` is non-zero and `d_evict` exceeds `d_create`, since otherwise the pair is already refused above |
+| `NoiseBatchSizeZero`                 | `noise_batch_size` must be ≥ 1 while the noise schedule is enabled; a disabled schedule leaves the field unchecked                                                |
+| `NoiseBatchSizeTooLarge`             | with noise enabled, the matrices one warm-up batch allocates must be representable — the bound either overflows or exceeds what the address space permits          |
+| `NoiseScheduleDecayOutOfRange`       | a `Geometric` schedule's `decay` must be in `(0.0, 1.0]`; the upper bound is included, unlike the decay fields above                                              |
+| `NoiseScheduleRootZero`              | a `Geometric` schedule's `root` must be non-zero where its `min` is above zero                                                                                    |
+| `DepthBufferTooLarge`                | the headroom the depth pair implies is too large to represent at all, so no `budget` can satisfy it; checked under the same guard as `BudgetTooSmall`             |
+| `TrackerDimensionTooSmall`           | the coordinate width `N` must be at least the narrowest width a tracker can model. Judged at construction rather than by `validate()`: the width is a parameter of the type, which the configuration alone cannot see |
+| `TrackerDimensionTooLarge`           | the coordinate width `N` must not exceed the widest width a centred bit vector can carry. Judged at construction, for the same reason                              |
+| `BackgroundWarmingThreadUnavailable` | not a constraint violation: `background_warming` was asked for and the operating system refused the thread. Raised where the thread is asked for, and returned alone rather than alongside the violations above |
+
+The enum is `#[non_exhaustive]`: each engine capability a configuration can ask for is one more way the request can be refused, so a caller matches the variants it has an opinion about and handles the rest through a wildcard arm reporting the `Display` text.
 
 ### §7.2 Thread Safety · `sec:sentinel:api-thread-safety`
 
@@ -798,7 +854,7 @@ Output *ordering* is deterministic given the same inputs and configuration. Outp
 - Tie-breaking by `start` (ascending) in competitive selection.
 - Fixed `noise_seed` for reproducible warm-up, within that scope.
 
-Under background warming the same seed and the same traffic still give the same graph, the same investment set and the same ascending-handle report order, but neither the baselines a tracker starts from nor the ingest cycle on which it first scores: the warming worker draws from its own generator and takes whichever staged cell leads on volume when it looks. A caller diffing two runs against each other holds the flag off, or compares converged state rather than cycle-by-cycle output.
+Under background warming the same seed and the same traffic still give the same graph, the same investment set and the same report order (§4.1), but neither the baselines a tracker starts from nor the ingest cycle on which it first scores: the warming worker draws from its own generator and takes whichever staged cell leads on volume when it looks. A caller diffing two runs against each other holds the flag off, or compares converged state rather than cycle-by-cycle output.
 
 ---
 
