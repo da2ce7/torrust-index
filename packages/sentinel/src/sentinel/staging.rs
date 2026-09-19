@@ -1251,7 +1251,7 @@ mod tests {
         );
     }
 
-    /// A cell joining the queue carries its volume immediately. Refreshing cached volumes before enqueueing would leave new cells at zero until another reconciliation pass, preventing the queue from prioritising them by traffic.
+    /// A cell joining the queue carries its volume immediately. Refreshing cached volumes before enqueueing would leave new cells at zero until another reconciliation pass, and a field of zeroes is decided entirely by the tie-breaks — shallower depth first, then the smaller identifier — so which of them is warmed first would be settled by where they sit in the tree rather than by the traffic the queue exists to follow.
     ///
     /// The worker is stopped through its shutdown handshake before traffic is queued, while its handle remains installed to select deferred staging. Every queued cell is therefore available for the volume assertions, without relying on the scheduler or the length of a noise schedule to leave cells waiting.
     ///

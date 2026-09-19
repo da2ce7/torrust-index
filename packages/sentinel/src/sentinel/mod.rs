@@ -1222,10 +1222,10 @@ where
             // starts at zero volume, and refreshing beforehand leaves every
             // newly entered cell holding that zero until some later pass.
             // The priority rule is highest volume first, so a field of
-            // zeroes is decided entirely by the tie-break — which favours
-            // the newest and deepest cell, the exact inverse of the
-            // documented rule that a busy ancestor is warmed before the
-            // cells beneath it.
+            // zeroes is decided entirely by the tie-breaks — shallower
+            // depth first, then the smaller identifier — and the order the
+            // new cells come online in would be settled by where they sit
+            // in the tree rather than by the traffic behind them.
             staging.update_volumes(&self.graph);
 
             // ── Warm-up dispatch ────────────────────────────
