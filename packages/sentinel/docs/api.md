@@ -774,7 +774,7 @@ pub struct CentredBits {
 | `sentinel::tracker`       | `SubspaceTracker` — SVD-based subspace model          |
 | `sentinel::cusum`         | CUSUM accumulator for drift detection                 |
 | `sentinel::staging`       | Deferred warm-up staging area (ADR-S-019)             |
-| `sentinel::warming_thread`| Background noise injection thread (§ALGO S-18.2)      |
+| `sentinel::warming_thread`| Background noise injection thread (§ALGO S-11.6.8)    |
 | `maths`                   | SVD (naive + Brand), matrix ops, Gamma distribution   |
 | `ewma`                    | `EwmaStats` — exponential moving average with clipping|
 | `observation`             | Suffix encoding. The module is crate-private, but the `CentredBits` and `CentredBitSource` it defines are re-exported at the crate root and are public surface (§5.5) |

@@ -547,7 +547,7 @@ cargo bench -p torrust-sentinel
 - **Measurements only.** Spectral Sentinel has no policy thresholds, threat levels, labels, or actions. Hosts must interpret reports in context.
 - **Single-writer mutation.** Mutating methods take `&mut self`; concurrent writers need external synchronisation.
 - **Warm-up tradeoff.** Synchronous warm-up is deterministic but can add latency when cells are created. Background warm-up avoids that spike but delays scoring for new cells.
-- **Timing equalisation out of scope.** Deferred warm-up is implemented; timing-protection padding and equalisation from §ALGO S-18.5 are outside this crate.
+- **Timing equalisation out of scope.** Deferred warm-up is implemented; timing-protection padding and equalisation from §ALGO S-12.9 are outside this crate.
 
 ## Documentation · `sec:sentinel:readme-documentation`
 

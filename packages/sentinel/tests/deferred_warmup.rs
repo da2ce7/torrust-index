@@ -21,7 +21,7 @@
 //! | [`step3_reset_restarts_background_thread`] | warmup | cites (´claim:warmup:a-reset-empties-the-staging-area-so-warm-up-begins-again-from-the-root-alone´) |
 //! | [`step3_drop_while_warming_no_hang`] | warmup | Dropping a sentinel with a long noise schedule still outstanding returns promptly instead of waiting for the queue to empty. The warming thread checks for shutdown between batches and abandons whatever remains, because cells nobody will ever read from are not worth finishing. Teardown costs at most one batch of work, not the rest of the schedule. |
 
-//! Deferred warm-up (§ALGO S-18.2): paying for a new cell off the hot path.
+//! Deferred warm-up (§ALGO S-11.6): paying for a new cell off the hot path.
 //!
 //! Seeding a new cell's tracker with synthetic noise is the expensive part of
 //! creating one, and it comes due at exactly the wrong moment — a split is
@@ -589,7 +589,7 @@ fn step3_background_same_cell_structure_as_sync() {
 #[test]
 fn step3_higher_volume_cells_warm_via_priority() {
     // The staging area serves cells in volume-descending order
-    // (§ALGO S-18.2). We use a slow noise schedule so that
+    // (§ALGO S-11.6.2). We use a slow noise schedule so that
     // background warming is still in progress when we inspect,
     // then verify that the high-volume subtree has promoted cells.
     let cfg = SentinelConfig::<u64> {

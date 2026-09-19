@@ -39,8 +39,8 @@ Architecture Decision Records live in [`../adr/`](../adr/).
 | [src/sentinel/mod.rs](../src/sentinel/mod.rs)                       | `SpectralSentinel` orchestrator                                            |
 | [src/sentinel/tracker.rs](../src/sentinel/tracker.rs)               | `SubspaceTracker` — core SVD engine                                        |
 | [src/sentinel/cusum.rs](../src/sentinel/cusum.rs)                   | `CusumAccumulator` — one-sided Page's test                                 |
-| [src/sentinel/staging.rs](../src/sentinel/staging.rs)               | `WarmingCell`, `StagingArea` — deferred warm-up (§ALGO S-18.2)             |
-| [src/sentinel/warming_thread.rs](../src/sentinel/warming_thread.rs) | Background warming thread (§ALGO S-18.2 Step 3)                            |
+| [src/sentinel/staging.rs](../src/sentinel/staging.rs)               | `WarmingCell`, `StagingArea` — deferred warm-up (§ALGO S-11.6)             |
+| [src/sentinel/warming_thread.rs](../src/sentinel/warming_thread.rs) | Background warming thread (§ALGO S-11.6.8)                                 |
 | [src/maths/mod.rs](../src/maths/mod.rs)                             | SVD strategy dispatch, `SvdStrategy` enum                                  |
 | [src/maths/brand_svd.rs](../src/maths/brand_svd.rs)                 | Brand's incremental SVD ([ADR-S-016](../adr/016-brand-incremental-svd.md)) |
 | [src/maths/naive_svd.rs](../src/maths/naive_svd.rs)                 | Dense thin SVD baseline                                                    |
@@ -292,7 +292,7 @@ Synthetic noise vectors are uniform $\pm 0.5$ centred bit vectors matching the `
 
 There is no manual noise API — the sentinel owns the injection lifecycle entirely ([ADR-S-007](../adr/007-automatic-noise-injection.md)). Every newly created tracker is warmed before it receives real observations. The root tracker is warmed at construction.
 
-### 8.4 Deferred Cell Warm-Up (§ALGO S-11.6, §ALGO S-18.2) · `sec:sentinel:implementation-deferred-cell-warmup`
+### 8.4 Deferred Cell Warm-Up (§ALGO S-11.6) · `sec:sentinel:implementation-deferred-cell-warmup`
 
 Cell warm-up is decoupled from the `ingest()` hot path to bound per-call work variance:
 
@@ -302,7 +302,7 @@ Cell warm-up is decoupled from the `ingest()` hot path to bound per-call work va
 
 The staging area lives behind `Arc<Mutex<StagingArea>>` for sharing with the background warming thread.
 
-### 8.5 Background Warming Thread (§ALGO S-18.2 Step 3) · `sec:sentinel:implementation-background-warming-thread`
+### 8.5 Background Warming Thread (§ALGO S-11.6.8) · `sec:sentinel:implementation-background-warming-thread`
 
 When `config.background_warming` is `true`, a dedicated thread runs the warm-up loop:
 

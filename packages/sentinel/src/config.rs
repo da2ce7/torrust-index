@@ -10,7 +10,7 @@
 
 use torrust_mudlark::{Accumulator, Inspectable};
 
-// ─── Noise schedule (§ALGO S-18.2, ADR-S-015 §1) ────────────
+// ─── Noise schedule (§ALGO S-11.1.3, ADR-S-015 §1) ────────────
 
 /// Depth-tiered noise injection schedule.
 ///
@@ -358,7 +358,7 @@ pub struct SentinelConfig<V: Accumulator> {
     /// Default: `100_000`  (§ALGO S-13.3: `budget` / `G_max`)
     pub budget: usize,
 
-    /// Depth-tiered noise injection schedule (§ALGO S-18.2, ADR-S-015 §1).
+    /// Depth-tiered noise injection schedule (§ALGO S-11.1.3, ADR-S-015 §1).
     ///
     /// Controls how many synthetic noise batches each newly created
     /// tracker receives, varying by G-tree depth. Deeper cells are
@@ -387,7 +387,7 @@ pub struct SentinelConfig<V: Accumulator> {
     /// Default: `Some(42)`
     pub noise_seed: Option<u64>,
 
-    /// Whether to perform cell warm-up on a background thread (§ALGO S-18.2, Step 3).
+    /// Whether to perform cell warm-up on a background thread (§ALGO S-11.6.8).
     ///
     /// When `true`, newly created analysis cells are warmed by a
     /// dedicated background thread instead of being warmed inline
@@ -880,7 +880,7 @@ impl<V: Inspectable> SentinelConfig<V> {
             }
         }
 
-        // ── Noise injection fields (§ALGO S-13.5, §ALGO S-18.2) ──
+        // ── Noise injection fields (§ALGO S-13.5, §ALGO S-11.1.3) ──
         if !self.noise_schedule.is_disabled()
             && let Some(error) = noise_batch_error(self.noise_batch_size, self.max_rank)
         {

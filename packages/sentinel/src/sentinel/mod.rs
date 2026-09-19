@@ -8,7 +8,7 @@
 //! API; the subspace tracker and CUSUM accumulator are implementation
 //! details.
 //!
-//! # Automatic noise injection (§ALGO S-11, §ALGO S-18.2)
+//! # Automatic noise injection (§ALGO S-11, §ALGO S-11.6)
 //!
 //! Every newly created tracker is automatically warmed with synthetic
 //! noise before it receives any real observations. The root tracker
@@ -213,7 +213,7 @@ where
     noise_rng: SmallRng,
 
     /// Staging area for cells undergoing deferred noise warm-up
-    /// (§ALGO S-18.2).
+    /// (§ALGO S-11.6).
     staging: Arc<Mutex<staging::StagingArea<C>>>,
 
     /// Handle to the background warming thread (Step 3).
@@ -405,7 +405,7 @@ where
         // before Step 4 (scoring), since the spatial layer routes
         // on raw coordinates and does not need centred bits.
 
-        // ── Step 0: Promote ready cells (§ALGO S-18.2) ────
+        // ── Step 0: Promote ready cells (§ALGO S-11.6.3) ────
         // Cells that completed background warm-up since the last
         // ingest are moved into the live cells map. In the
         // synchronous transitional version (Step 2) this promotes
@@ -1018,7 +1018,7 @@ where
     /// root tracker is never destroyed (§ALGO S-4.7).
     ///
     /// New cells are enqueued into the staging area rather than being
-    /// warmed inline (Step 2, §ALGO S-18.2). A synchronous drain loop
+    /// warmed inline (Step 2, §ALGO S-11.6.8). A synchronous drain loop
     /// warms all queued cells to completion, then promotes them into
     /// the live cells map — identical external behaviour to the old
     /// inline path. The background-thread version (Step 3) will
@@ -1124,7 +1124,7 @@ where
     }
 
     /// Promote all ready cells from the staging area into the live
-    /// cells map (Step 2.3, §ALGO S-18.2 Step 0).
+    /// cells map (Step 2.3, §ALGO S-11.6.3).
     ///
     /// Ready cells have completed their full noise warm-up schedule.
     /// Coordination warm-up for these cells fires naturally when
