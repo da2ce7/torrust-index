@@ -769,43 +769,71 @@ pub struct ContourSnapshot {
 /// enumerating every cell. For the complete set, use
 /// [`SpectralSentinel::analysis_set()`](crate::SpectralSentinel::analysis_set).
 ///
+/// Every count and range is taken over the cells its producer is describing,
+/// and which cells those are is the producer's to state rather than the type's:
+///
+/// - [`AnalysisSet::summary()`](crate::AnalysisSet::summary) takes every figure
+///   over the whole selection, online or still warming — the competitive
+///   targets $\mathcal{T}$ and the investment set $\mathcal{I}$
+///   (§ALGO S-8.1–8.2).
+/// - [`AnalysisSet::summary_online()`](crate::AnalysisSet::summary_online)
+///   takes them over the selection intersected with the cells that have a
+///   tracker — the producing sets $\mathcal{A}$ and $\mathcal{A}^*$
+///   (§ALGO S-8.3) — leaving the investment count whole, because the cells the
+///   filter would drop are precisely those already paid for and not yet
+///   producing.
+/// - The summary carried by [`BatchReport`] is that online reading with two
+///   fields replaced by figures the sentinel can see directly and a selection
+///   snapshot cannot: the tracker population for `investment_set_size`, and its
+///   own tally for `degenerate_cells_skipped`.
+///
+/// A reader holding one of these values therefore knows the shape of the
+/// figures but not their scope, and takes the scope from whichever call
+/// produced it.
+///
 /// See §ALGO S-14.12, ADR-S-019.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AnalysisSetSummary {
-    /// Number of online competitive targets: $|\mathcal{A}|$
-    /// (the producing competitive set, §ALGO S-8.3).
+    /// Number of competitive targets counted: $|\mathcal{T}|$ over the whole
+    /// selection, or the producing competitive set $|\mathcal{A}|$
+    /// (§ALGO S-8.3) over the online cells.
     ///
     /// Always ≤ `analysis_k` from the configuration.
     pub competitive_size: usize,
 
-    /// Total online cells in the producing full set: $|\mathcal{A}^*|$
-    /// (§ALGO S-8.3).
+    /// Total cells in the full set counted: $|\mathcal{I}|$ over the whole
+    /// selection, or the producing full set $|\mathcal{A}^*|$ (§ALGO S-8.3)
+    /// over the online cells.
     ///
-    /// Includes online competitive targets, their online G-tree
+    /// Includes the competitive targets counted here, their G-tree
     /// ancestors, and the permanent root tracker.
     pub full_size: usize,
 
-    /// Total cells with allocated trackers (online + warming):
+    /// Total cells with allocated trackers, warming ones included:
     /// $|\mathcal{I}|$ (the investment set, §ALGO S-8.2).
     ///
-    /// `investment_set_size = full_size + warming trackers`.
+    /// Never narrowed to the online cells, whichever summary produced it: from
+    /// a selection snapshot it is the size of the whole selection, and in the
+    /// batch report it is the tracker population itself. The two readings part
+    /// wherever a tracker outlives its cell's membership of the selection, and
+    /// the population is the one being paid for.
     pub investment_set_size: usize,
 
-    /// (min, max) G-tree depth across the full analysis set.
+    /// (min, max) G-tree depth across the cells counted by `full_size`.
     ///
     /// Depth 0 = root (always present). Max depth reflects
     /// the finest spatial resolution currently being analysed.
     pub depth_range: (u32, u32),
 
-    /// (min, max) importance across the competitive set.
+    /// (min, max) importance across the cells counted by `competitive_size`.
     ///
     /// Erased to `f64` via `V::to_f64_approx()` — the concrete
     /// accumulator type is hidden from report consumers.
     /// `(0.0, 0.0)` when `competitive_size == 0`.
     pub importance_range: (f64, f64),
 
-    /// (min, max) V-Tree depth across the competitive set.
+    /// (min, max) V-Tree depth across the cells counted by `competitive_size`.
     ///
     /// V-Tree depth reflects competitive standing — lower = more
     /// significant. `(0, 0)` when `competitive_size == 0`.

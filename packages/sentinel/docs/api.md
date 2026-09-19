@@ -384,6 +384,8 @@ pub struct HealthReport {
 
 Summary of the analysis set at report time.
 
+Every count and range is taken over the cells its producer describes, and the type does not fix which those are. `AnalysisSet::summary()` takes every figure over the whole selection, online or still warming — the competitive targets $\mathcal{T}$ and the investment set $\mathcal{I}$ (§ALGO S-8.1–8.2). `AnalysisSet::summary_online(online)` takes them over the selection intersected with the cells that have trackers — the producing sets $\mathcal{A}$ and $\mathcal{A}^*$ (§ALGO S-8.3) — and leaves `investment_set_size` whole, because the cells the filter would drop are precisely those already paid for and not yet producing. The summary carried inside `BatchReport` is that online reading with two fields replaced by figures the sentinel can see directly and a selection snapshot cannot: the tracker population for `investment_set_size`, and its own tally for `degenerate_cells_skipped`.
+
 ```rust
 pub struct AnalysisSetSummary {
     pub competitive_size: usize,
@@ -714,7 +716,8 @@ Methods:
 - `is_competitive(gnode: GNodeId) -> bool`
 - `competitive_count() -> usize`
 - `total_count() -> usize`
-- `summary() -> AnalysisSetSummary`
+- `summary() -> AnalysisSetSummary` — every figure over the whole selection
+- `summary_online(online: &BTreeSet<GNodeId>) -> AnalysisSetSummary` — the producing reading, as carried by `BatchReport`
 
 #### Selection algorithm (§ALGO S-8.1) · `sec:sentinel:api-analysis-set-selection-algorithm`
 
