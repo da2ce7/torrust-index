@@ -709,11 +709,15 @@ pub struct CellInspection<C: Copy + Debug> {
 /// Snapshot of the G-V Graph's spatial contour at report time.
 ///
 /// The contour is the observable surface of the spatial structure —
-/// how many distinct regions exist, how many leaf cells, and how
-/// much total traffic volume the graph has accumulated.
+/// how many distinct regions exist, how many cells stand on that
+/// surface, and how much total traffic volume the graph has
+/// accumulated. A contour cell is a terminal node or a semi-internal
+/// one, whose unsubdivided half accumulates locally and is a cell in
+/// its own right (§ALGO S-14.10).
 ///
-/// Populated from `GvGraph::plateaus()`, `GvGraph::terminal_count()`,
-/// and `GvGraph::total_sum()`.
+/// Populated from `GvGraph::plateaus()`, `GvGraph::terminal_count()`
+/// summed with `GvGraph::semi_internal_count()`, and
+/// `GvGraph::total_sum()`.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContourSnapshot {

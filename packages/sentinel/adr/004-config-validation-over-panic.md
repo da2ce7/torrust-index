@@ -29,15 +29,30 @@ The sentinel's validation runs *before* `GvGraph::new()` is ever called, so mudl
 The most complex constraint is the budget headroom check:
 
 ```rust
-let buffer = self.d_evict - self.d_create;
-let headroom = 3usize.pow(buffer + 1);
-let convergence = 2 * (self.d_create as usize).saturating_sub(1);
-let required = headroom.max(convergence);
-if self.budget <= required {
-    errors.push(ConfigError::BudgetTooSmall {
-        budget: self.budget,
-        required_minimum: required,
-    });
+fn headroom_requirement(d_create: u32, d_evict: u32) -> Option<usize> {
+    let buffer = d_evict.checked_sub(d_create)?;
+    let exponent = buffer.checked_add(1)?;
+    let headroom = 3usize.checked_pow(exponent)?;
+    let convergence = (d_create as usize).saturating_sub(1).checked_mul(2)?;
+    Some(headroom.max(convergence))
+}
+
+// In validate(), reached only once the budget is non-zero and the
+// depth pair has cleared its own check:
+match headroom_requirement(self.d_create, self.d_evict) {
+    Some(required) if self.budget <= required => {
+        errors.push(ConfigError::BudgetTooSmall {
+            budget: self.budget,
+            required_minimum: required,
+        });
+    }
+    Some(_) => {}
+    None => {
+        errors.push(ConfigError::DepthBufferTooLarge {
+            d_create: self.d_create,
+            d_evict: self.d_evict,
+        });
+    }
 }
 ```
 
