@@ -1579,17 +1579,17 @@ Noise injection is performed **outside** the main observation path. New trackers
 
 #### 11.6.2 Priority Scheduling · `sec:sentinel:algorithm-deferred-cell-warmup-priority-scheduling`
 
-The warm-up pipeline always works on whichever member of the investment set's warming subset has the highest g.sum:
+The warm-up pipeline always works on whichever member of the investment set's warming subset is greatest under the priority key, compared lexicographically:
 
-$$\text{priority}(c) = \text{g.sum}(c.\text{node})$$
+$$\text{priority}(c) = \big(\text{g.sum}(c.\text{node}),\; -\text{depth}(c.\text{node}),\; -\text{id}(c.\text{node})\big)$$
 
-where g.sum is the G-Tree node sum (§3.12 property 2) — the node's own accumulation plus all descendant sums.
+where g.sum is the G-Tree node sum (§3.12 property 2) — the node's own accumulation plus all descendant sums — and the two negated components select, among cells of equal g.sum, first the shallowest and then the one with the smallest node identifier. Volume decides every pair whose sums differ; the lower two components exist for the pairs whose sums are equal, and consequence 2 gives the reason each is needed.
 
-This ordering has four consequences:
+This ordering has five consequences:
 
 1. **Volume drives priority.** A higher g.sum node has more observation traffic flowing through its spatial region — bringing it online has the greatest impact on analysis quality.
 
-2. **Ancestors emerge first.** By the summation invariant (§3.12 property 2), every ancestor's g.sum is at least as great as any descendant's. Sorting the warming set by g.sum produces an ordering where every ancestor appears before every descendant. This is a topological sort of the ancestor chains — obtained for free from a single sort, without encoding depth into the priority.
+2. **Ancestors emerge first.** By the summation invariant (§3.12 property 2), every ancestor's g.sum is at least as great as any descendant's, so the volume component already orders correctly every pair whose sums differ. It does not order the pairs whose sums are equal, and on an ancestor chain those are the ordinary case rather than a corner: a path node whose accumulation is entirely the single warming cell below it has exactly that cell's sum, and an implementation holding a floating-point approximation of the node sum ties over a wider set still. The depth component resolves each such tie toward the shallower cell, which is what makes the ordering a topological sort of the ancestor chains rather than merely consistent with one. The identifier component is a final deterministic tie-break between cells of equal depth, and it cannot carry the ancestor rule in depth's place: node identifiers are drawn from an arena that reuses freed slots, so a cell created into a recycled slot may hold a smaller identifier than an ancestor allocated before it, and an identifier tie-break alone would warm that descendant first.
 
 3. **Full chain at promotion.** Because ancestors come online before descendants, when a competitive target completes warm-up, its entire ancestor chain is already online. The multi-scale defence (§16) is complete from the first batch the target processes. No secondary warm-up gap exists.
 
