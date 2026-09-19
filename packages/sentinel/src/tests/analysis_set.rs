@@ -307,7 +307,7 @@ fn competitive_ordering_by_importance_then_start() {
 fn internal_nodes_eligible_for_competitive_set() {
     // After splits, internal G-Tree nodes retain their V-Tree
     // position and frozen importance. The competitive set uses
-    // V-Tree ranking exclusively (§ALGO S-4.1) — no G-Tree state
+    // V-Tree ranking exclusively (§ALGO S-8.1) — no G-Tree state
     // filter — so internal nodes with sufficient importance remain
     // eligible.
     let mut graph = test_graph();

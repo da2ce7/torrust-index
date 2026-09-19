@@ -53,7 +53,7 @@
 //! |------|----------|-----------------|
 //! | 0 | [`step_0_fresh`] | Fresh Sentinel = one spatial root, one warmed tracker, no real observations |
 //!
-//! ## Feed-Forward Observation (§ALGO S-8.1, ADR-S-002)
+//! ## Feed-Forward Observation (§ALGO S-9.1, ADR-S-002)
 //!
 //! | Step | Function | What it teaches |
 //! |------|----------|-----------------|
@@ -454,7 +454,7 @@ fn step_0_fresh(sentinel: &Sentinel128) {
 
 // ========================================================================
 //  STEP 1: FIRST REAL BATCH -- FEED-FORWARD OBSERVATION
-//  §ALGO S-8.1, ADR-S-002
+//  §ALGO S-9.1, ADR-S-002
 // ========================================================================
 
 /// The first real batch proves the feed-forward invariant at the public
@@ -465,7 +465,7 @@ fn step_0_fresh(sentinel: &Sentinel128) {
 /// back into spatial importance.
 fn step_1_first_batch(sentinel: &mut Sentinel128) {
     heading("Step 1: First Real Batch -- Feed-Forward Observation");
-    println!("  (§ALGO S-8.1, ADR-S-002)");
+    println!("  (§ALGO S-9.1, ADR-S-002)");
 
     // Probe A: a structurally simple batch.
     let values = cell_values(0xA, 8);

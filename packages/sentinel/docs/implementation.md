@@ -82,8 +82,8 @@ Unit tests live in `src/tests/` (crate-level) and integration tests in `tests/` 
 | `tests/report_structure.rs`          | `BatchReport` structure and field contracts                                 |
 | `tests/sentinel_u64.rs`              | 64-bit sentinel (`Sentinel64`) end-to-end path                              |
 | `tests/spatial_decay.rs`             | Spatial decay via `decay()` / `decay_subtree()`                             |
-| `tests/suffix_analysis.rs`           | Suffix analysis (§ALGO S-3.2)                                               |
-| `tests/warm_up.rs`                   | Four-stage warm-up sequence (§ALGO S-11.6)                                  |
+| `tests/suffix_analysis.rs`           | Suffix analysis (§ALGO S-2.4)                                               |
+| `tests/warm_up.rs`                   | Four-stage warm-up sequence (§ALGO S-11.8)                                  |
 | `tests/common/`                      | Shared builders, assertions, config presets, generators                     |
 
 #### Crate tests (`src/tests/`) · `sec:sentinel:implementation-crate-tests`
@@ -110,7 +110,7 @@ Unit tests live in `src/tests/` (crate-level) and integration tests in `tests/` 
 
 ## 2. Architecture Overview · `sec:sentinel:implementation-architecture-overview`
 
-The sentinel implements the three-layer architecture (§ALGO S-1.1):
+The sentinel implements the three-layer architecture (§ALGO S-1.4):
 
 ```
 Layer 1: GvGraph<C, V, N>            ← torrust-mudlark
@@ -155,7 +155,7 @@ The investment set is reconciled against the live `cells` map and the `StagingAr
 
 ### 2.3 The Analysis Engine (Layer 3) · `sec:sentinel:implementation-architecture-analysis-engine`
 
-One `SubspaceTracker` per cell in the investment set $\mathcal{I}$. Each tracker analyses the **suffix** bits `[d, N)` with width $w = N - d$ (§ALGO S-3.2). Cells with $w < 2$ are excluded ([ADR-S-011](../adr/011-degenerate-cell-dimension-guard.md)). Only online trackers (the producing full set $\mathcal{A}^*$) score observations; warming trackers receive only synthetic noise.
+One `SubspaceTracker` per cell in the investment set $\mathcal{I}$. Each tracker analyses the **suffix** bits `[d, N)` with width $w = N - d$ (§ALGO S-2.4). Cells with $w < 2$ are excluded ([ADR-S-011](../adr/011-degenerate-cell-dimension-guard.md)). Only online trackers (the producing full set $\mathcal{A}^*$) score observations; warming trackers receive only synthetic noise.
 
 The root tracker at depth 0 ($w = N$) is permanent — never destroyed (§ALGO S-8.4).
 
@@ -181,7 +181,7 @@ Safety guards:
 
 - **SVD failure** — falls back to identity if SVD does not converge.
 - **Identical observations** — handled without numerical degeneracy.
-- **Coherence lifecycle** — undefined at $k < 2$; baselines destroyed on rank drop (§ALGO S-6.4).
+- **Coherence lifecycle** — undefined at $k < 2$; baselines destroyed on rank drop (§ALGO S-5.5).
 - **Latent cold→warm initialisation** — on the first batch, `lat_mean`, `lat_var`, and `cross_corr` are seeded directly from data ([ADR-S-013](../adr/013-warm-up-convergence-benchmark.md)).
 - **EWMA-mean-centred variance** — variance centres on the EWMA mean rather than the batch mean, eliminating batch-size-dependent bias ([ADR-S-021](../adr/021-ewma-mean-centred-variance.md)).
 
@@ -189,7 +189,7 @@ Safety guards:
 
 ## 4. Scoring Axes · `sec:sentinel:implementation-scoring-axes`
 
-All four axes satisfy the polarity invariant: **higher = more anomalous** (§ALGO S-6).
+All four axes satisfy the polarity invariant: **higher = more anomalous** (§ALGO S-5.1).
 
 | Axis         | Formula                              | Bounds        | §ALGO S- |
 | ------------ | ------------------------------------ | ------------- | -------- |
@@ -208,7 +208,7 @@ where $\bar{s}$ and $\bar{v}$ are the fast EWMA mean and variance (§ALGO S-6.1.
 
 ## 5. Baseline Tracking · `sec:sentinel:implementation-baseline-tracking`
 
-### 5.1 Fast EWMA (§ALGO S-7.1) · `sec:sentinel:implementation-fast-ewma`
+### 5.1 Fast EWMA (§ALGO S-6.1) · `sec:sentinel:implementation-fast-ewma`
 
 Per-axis `EwmaStats` with configurable `clip_sigmas`. Observations beyond $\bar{s} + n_\sigma^{\text{eff}} \sqrt{\bar{v}}$ are clipped (upper-tail only) to prevent baseline poisoning.
 
@@ -218,17 +218,17 @@ $$n_\sigma^{\text{eff}} = n_\sigma + n_\sigma \cdot \frac{\eta}{1 - \eta + \vare
 
 This widens the ceiling while baselines are immature, eliminating the clipping-ceiling positive feedback loop that previously caused 5–10× slower convergence.
 
-### 5.2 Slow EWMA (§ALGO S-7.2) · `sec:sentinel:implementation-slow-ewma`
+### 5.2 Slow EWMA (§ALGO S-6.2) · `sec:sentinel:implementation-slow-ewma`
 
 A secondary EWMA with decay factor `cusum_slow_decay` (default 0.999, half-life ≈ 693 steps) provides the reference baseline for CUSUM drift detection.
 
-### 5.3 CUSUM Drift Detection (§ALGO S-7.3) · `sec:sentinel:implementation-cusum-drift-detection`
+### 5.3 CUSUM Drift Detection (§ALGO S-6.3) · `sec:sentinel:implementation-cusum-drift-detection`
 
 `CusumAccumulator` implements one-sided Page's test with:
 
 - Compute-before-update ordering.
 - Noise allowance: $\kappa_\sigma \cdot \sqrt{v_{\text{slow}}}$.
-- Reset after noise injection (§ALGO S-7.4).
+- Reset after noise injection (§ALGO S-11.4).
 - Slow EWMA seeded from fast EWMA at noise→real transition ([ADR-S-013](../adr/013-warm-up-convergence-benchmark.md)).
 
 ---

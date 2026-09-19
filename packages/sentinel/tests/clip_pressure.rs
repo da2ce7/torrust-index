@@ -353,7 +353,7 @@ fn effective_ceiling_widens_under_pressure() {
     let clip_sigmas = 3.0_f64;
     let eps = 1e-6_f64;
 
-    // §ALGO S-14.4 effective-clip formula: n_σ · (1 + ρ̄ / (1 − ρ̄ + ε))
+    // §ALGO S-6.4 effective-clip formula: n_σ · (1 + ρ̄ / (1 − ρ̄ + ε))
     let effective_clip = clip_sigmas * (1.0 + p / (1.0 - p + eps));
 
     assert!(

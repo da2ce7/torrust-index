@@ -171,7 +171,7 @@ impl CentredBits {
     /// For a cell at G-tree depth `d`, the first `d` bits are resolved
     /// by routing (constant within the cell). The suffix `[d, len)` is
     /// the working observation — the bits that vary and carry
-    /// statistical content (§ALGO S-3.2).
+    /// statistical content (§ALGO S-2.4).
     ///
     /// Width: `len - depth`. At depth 0, the suffix is the entire
     /// bit vector. At depth `len`, the suffix is empty (zero-width

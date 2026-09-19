@@ -116,7 +116,7 @@ pub struct CellState<C: Coordinate> {
     pub is_competitive: bool,
 }
 
-/// Per-G-node coordination state (§ALGO S-9.1).
+/// Per-G-node coordination state (§ALGO S-7.1).
 ///
 /// Active while both subtrees of this G-node contain online competitive
 /// cells. A context fires only when both subtrees also contribute scores
@@ -125,13 +125,13 @@ struct CoordContext {
     /// Subspace tracker at w = 4, using `cusum_coord_slow_decay`.
     tracker: SubspaceTracker,
 
-    /// Running EWMA mean of the 4D cell-score input vectors (§ALGO S-9.3).
+    /// Running EWMA mean of the 4D cell-score input vectors (§ALGO S-7.3).
     /// Used for centring before feeding the coordination tracker.
     running_mean: [f64; 4],
 
     /// Whether the running mean has been initialised with at least
     /// one batch. Cold-start: first batch sets
-    /// `running_mean = colmeans(O_g)` (§ALGO S-9.3).
+    /// `running_mean = colmeans(O_g)` (§ALGO S-7.3).
     warm: bool,
 }
 
@@ -141,12 +141,12 @@ struct CoordContext {
 ///
 /// The sentinel maintains one `SubspaceTracker` per analysis cell
 /// in the full analysis set. Cells are selected by the analysis
-/// selector (§ALGO S-4.1) from the G-V Graph's V-Tree.
+/// selector (§ALGO S-8.1) from the G-V Graph's V-Tree.
 ///
 /// A second tier of coordination trackers — one per active G-tree
 /// internal node whose subtrees both contribute competitive cells —
 /// analyses cross-cell score patterns for coordinated anomalies
-/// (§ALGO S-9.1).
+/// (§ALGO S-7.1).
 ///
 /// # Design principle
 ///
@@ -169,7 +169,7 @@ where
 {
     config: SentinelConfig<V>,
 
-    /// The G-V Graph spatial substrate (§ALGO S-2.4).
+    /// The G-V Graph spatial substrate (§ALGO S-3.2).
     ///
     /// Owns the adaptive spatial partition of the observation domain.
     graph: GvGraph<C, V, N>,
@@ -191,7 +191,7 @@ where
     /// Permanent — never destroyed (§ALGO S-8.4).
     root_gnode: GNodeId,
 
-    /// Per-G-node coordination contexts (§ALGO S-9.1).
+    /// Per-G-node coordination contexts (§ALGO S-7.1).
     ///
     /// Keyed by `GNodeId` of internal G-nodes whose subtrees
     /// contain competitive cells in both left and right branches.
@@ -317,7 +317,7 @@ where
             is_competitive: false,
         };
 
-        // Auto noise injection on root tracker (§ALGO S-11.2).
+        // Auto noise injection on root tracker (§ALGO S-11.1).
         let root_rounds = config.noise_schedule.rounds_for_depth(0);
         if root_rounds > 0 {
             inject_noise_into_cell(&mut root_cell, root_rounds as usize, config.noise_batch_size, &mut noise_rng);
@@ -414,7 +414,7 @@ where
         // catch cells that finished between ingest calls.
         self.promote_ready_cells();
 
-        // ── Step 2: G-V Graph observation (§ALGO S-8.1) ───
+        // ── Step 2: G-V Graph observation (§ALGO S-3.3) ───
         // [Step 1 (encoding) deferred to just before scoring.]
         let unit_delta = V::from_f64(1.0);
 
@@ -452,7 +452,7 @@ where
         let centred: Vec<CentredBits> = values.iter().map(|v| CentredBits::from_coord(v, N)).collect();
         let cell_reports = self.route_and_score(values, &centred);
 
-        // ── Step 5: Coordination tier (§ALGO S-9.4) ───────
+        // ── Step 5: Coordination tier (§ALGO S-7.4) ───────
         let cell_scores = Self::assemble_cell_scores(&cell_reports);
         let coordination_reports = self.propagate_coordination_from_root(&cell_scores);
 
@@ -1324,7 +1324,7 @@ where
     }
 
     // ════════════════════════════════════════════════════════
-    //  Hierarchical coordination (§ALGO S-9)
+    //  Hierarchical coordination (§ALGO S-7)
     // ════════════════════════════════════════════════════════
 
     /// Extract the 4D mean score vector from competitive cell reports.
@@ -1454,7 +1454,7 @@ where
 
     /// Walk the coordination tree bottom-up, firing coordination at
     /// internal nodes where both subtrees contribute competitive cell
-    /// scores (§ALGO S-9.4).
+    /// scores (§ALGO S-7.4).
     ///
     /// Returns `(reports, cells_in_subtree)`.
     #[allow(clippy::type_complexity)]
@@ -1563,7 +1563,7 @@ where
             );
         }
 
-        // Centre against running mean (§ALGO S-9.3).
+        // Centre against running mean (§ALGO S-7.3).
         let centred: Vec<Vec<f64>> = my_cells
             .iter()
             .map(|(_, scores)| scores.iter().enumerate().map(|(j, &v)| v - ctx.running_mean[j]).collect())
@@ -1575,7 +1575,7 @@ where
         // Compute column means.
         let col_means = compute_col_means(my_cells);
 
-        // Update running mean (§ALGO S-9.3).
+        // Update running mean (§ALGO S-7.3).
         if ctx.warm {
             for (j, m) in ctx.running_mean.iter_mut().enumerate() {
                 *m = lam.mul_add(*m, alpha * col_means[j]);

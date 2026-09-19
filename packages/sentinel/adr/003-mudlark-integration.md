@@ -1,6 +1,6 @@
 # ADR-S-003: Mudlark Integration · `rec:sentinel:mudlark-default-types-and-feature-gating`
 
-**Status:** Decided (Part A superseded by [ADR-S-018](018-generic-domain-parameters.md)) **Date:** 2026-03-09 **Spec:** §ALGO S-2.1 (domain $[0, 2^{128})$), §ALGO S-2.4 (what sentinel owns), §ALGO S-13.3 (G-V Graph config) **Relates to:** [ADR-S-002](002-feed-forward-invariant.md) (Δ = 1 invariant), [ADR-S-004](004-config-validation-over-panic.md) (config validation), mudlark [ADR-M-006](../../mudlark/adr/006-generic-parameters.md) (generic parameters)
+**Status:** Decided (Part A superseded by [ADR-S-018](018-generic-domain-parameters.md)) **Date:** 2026-03-09 **Spec:** §ALGO S-2.1 (domain $[0, 2^{128})$), §ALGO S-1.6 (what sentinel owns), §ALGO S-13.3 (G-V Graph config) **Relates to:** [ADR-S-002](002-feed-forward-invariant.md) (Δ = 1 invariant), [ADR-S-004](004-config-validation-over-panic.md) (config validation), mudlark [ADR-M-006](../../mudlark/adr/006-generic-parameters.md) (generic parameters)
 
 ## Context · `sec:sentinel:mudlark-context`
 

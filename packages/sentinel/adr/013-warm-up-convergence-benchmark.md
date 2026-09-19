@@ -1,8 +1,8 @@
 # ADR-S-013: Warm-Up Convergence Benchmark · `rec:sentinel:benchmark-convergence-and-fix-three-root-causes`
 
-**Status:** Accepted (core fixes implemented; config and spec updates remain) **Date:** 2026-03-10 **Spec:** §ALGO S-11.5 (maturity tracking), §ALGO S-11.6 (system-level warm-up), §ALGO S-6.1.1 (EWMA baseline tracking and outlier clipping), §ALGO S-5.2 Phase 3 (latent distribution) **Relates to:** [ADR-S-007](007-automatic-noise-injection.md) (automatic noise injection), [ADR-S-012](012-test-duration-budget.md) (test duration budget), [ADR-S-001](001-measures-not-opinions.md) (measures not opinions), [ADR-S-014](014-subspace-tracker-visibility.md) (subspace tracker visibility), [ADR-S-015](015-cell-creation-performance.md) (cell creation performance), [ADR-S-016](016-brand-incremental-svd.md) (Brand's incremental SVD)
+**Status:** Accepted (core fixes implemented; config and spec updates remain) **Date:** 2026-03-10 **Spec:** §ALGO S-11.5 (maturity tracking), §ALGO S-11.8 (system-level warm-up), §ALGO S-6.1.1 (EWMA baseline tracking and outlier clipping), §ALGO S-4.2 Phase 3 (latent distribution) **Relates to:** [ADR-S-007](007-automatic-noise-injection.md) (automatic noise injection), [ADR-S-012](012-test-duration-budget.md) (test duration budget), [ADR-S-001](001-measures-not-opinions.md) (measures not opinions), [ADR-S-014](014-subspace-tracker-visibility.md) (subspace tracker visibility), [ADR-S-015](015-cell-creation-performance.md) (cell creation performance), [ADR-S-016](016-brand-incremental-svd.md) (Brand's incremental SVD)
 
-**Findings:** Four rounds of investigation (preliminary → secondary → code audit → tertiary synthesis) plus post-fix quaternary validation and recommendations.  All six findings documents have been retired; their essential content is captured in this ADR and in the spec updates to §ALGO S-5.2, §ALGO S-6.1.1, §ALGO S-7.4, §ALGO S-11.5, and §ALGO S-11.6.
+**Findings:** Four rounds of investigation (preliminary → secondary → code audit → tertiary synthesis) plus post-fix quaternary validation and recommendations.  All six findings documents have been retired; their essential content is captured in this ADR and in the spec updates to §ALGO S-4.2, §ALGO S-6.1.1, §ALGO S-11.4, §ALGO S-11.5, and §ALGO S-11.6.
 
 ## Context · `sec:sentinel:warmbench-context`
 
@@ -75,7 +75,7 @@ Monotonicity is confirmed: $n_\sigma^{\text{eff}}$ is strictly decreasing as $\e
 
 **Code:** `tracker.rs` Phase 4 (`observe()`), +13 lines.
 
-#### Fix 2: Latent cold→warm initialisation (§ALGO S-5.2 Phase 3) · `sec:sentinel:warmbench-latent-cold-warm-initialisation`
+#### Fix 2: Latent cold→warm initialisation (§ALGO S-4.2 Phase 3) · `sec:sentinel:warmbench-latent-cold-warm-initialisation`
 
 On the first batch (`step == 0`), `lat_mean`, `lat_var`, and `cross_corr` are seeded directly from data rather than blended with the initial defaults:
 
@@ -273,8 +273,8 @@ This investigation triggered three further ADRs:
 | Increase `noise_rounds` default (50 → ≥400 at $\lambda = 0.99$) | **HIGH** | TODO |
 | Promote windowed-mean convergence metric to production test suite | Medium | Validated in quaternary tests |
 | ~~Update §ALGO S-6.1.1 with graduated clip-exemption formula~~ | ~~Medium~~ | Done (2026-03-11) |
-| ~~Update §ALGO S-5.2 Phase 3 with cold→warm initialisation~~ | ~~Medium~~ | Done (2026-03-11) |
-| ~~Update §ALGO S-7.4 with slow-from-fast CUSUM seeding~~ | ~~Medium~~ | Done (2026-03-11) |
+| ~~Update §ALGO S-4.2 Phase 3 with cold→warm initialisation~~ | ~~Medium~~ | Done (2026-03-11) |
+| ~~Update §ALGO S-11.4 with slow-from-fast CUSUM seeding~~ | ~~Medium~~ | Done (2026-03-11) |
 | ~~Update §ALGO S-11.5–11.6 with empirical convergence data~~ | ~~Medium~~ | Done (2026-03-11) |
 | Address coherence as the production bottleneck (rank-gating delay) | Medium | Confirmed structural |
 | Per-axis test tolerances and displaced bimodality metric | Low | Characterised |

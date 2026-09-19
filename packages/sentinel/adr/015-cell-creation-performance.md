@@ -1,6 +1,6 @@
 # ADR-S-015: Cell Creation Performance · `rec:sentinel:depth-tiered-noise-schedule-bounds-creation-cost`
 
-**Status:** Implemented (§1 `NoiseSchedule`) **Date:** 2026-03-10 **Spec:** §ALGO S-8.2 (analysis set reconciliation), §ALGO S-11.2 (automatic noise injection) **Relates to:** [ADR-S-007](007-automatic-noise-injection.md) (automatic noise injection), [ADR-S-013](013-warm-up-convergence-benchmark.md) (warm-up convergence benchmark), [ADR-S-006](006-analysis-set-recomputation.md) (analysis set recomputation), [ADR-S-012](012-test-duration-budget.md) (test duration budget), [ADR-S-016](016-brand-incremental-svd.md) (Brand's incremental SVD)
+**Status:** Implemented (§1 `NoiseSchedule`) **Date:** 2026-03-10 **Spec:** §ALGO S-8.2 (analysis set reconciliation), §ALGO S-11.1 (automatic noise injection) **Relates to:** [ADR-S-007](007-automatic-noise-injection.md) (automatic noise injection), [ADR-S-013](013-warm-up-convergence-benchmark.md) (warm-up convergence benchmark), [ADR-S-006](006-analysis-set-recomputation.md) (analysis set recomputation), [ADR-S-012](012-test-duration-budget.md) (test duration budget), [ADR-S-016](016-brand-incremental-svd.md) (Brand's incremental SVD)
 
 ## Context · `sec:sentinel:noiseperf-context`
 
@@ -220,7 +220,7 @@ min = 100
 
 ### 2. Document the per-cell cost in the spec · `sec:sentinel:noiseperf-per-cell-cost`
 
-§ALGO S-11.2 should note that noise injection runs per cell, not once globally.  The cost model is:
+§ALGO S-11.1 should note that noise injection runs per cell, not once globally.  The cost model is:
 
 $$T_{\text{noise}} = \sum_{\text{cells } c} r(d_c) \times t_{\text{round}}$$
 

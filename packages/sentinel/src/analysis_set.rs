@@ -149,7 +149,7 @@ impl<C: Coordinate, V: Inspectable> AnalysisSet<C, V> {
 
         let competitive: Vec<AnalysisEntry<C, V>> = candidates;
 
-        // ── Step 4: Ancestor closure (§ALGO S-4.2) ────────────────
+        // ── Step 4: Ancestor closure (§ALGO S-8.2) ────────────────
         // Walk G-tree parents for each competitive entry. Collect
         // all ancestor GNodeIds not already in the competitive set.
         let mut full_set: BTreeMap<GNodeId, AnalysisEntry<C, V>> = BTreeMap::new();

@@ -94,8 +94,8 @@ pub struct BatchReport<C: Copy + Debug> {
 ///
 /// Each cell is at a specific G-tree depth and operates on suffix bits
 /// `[d, N)` at width `w = N - d`. Competitive cells are selected
-/// by the analysis selector (§ALGO S-4.1); ancestor cells provide
-/// multi-scale context (§ALGO S-4.2).
+/// by the analysis selector (§ALGO S-8.1); ancestor cells provide
+/// multi-scale context (§ALGO S-8.2).
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(bound = "C: serde::Serialize + serde::de::DeserializeOwned"))]
@@ -227,7 +227,7 @@ pub struct CoordinationReport<C: Copy + Debug> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TrackerReport {
     /// The suffix depth `d`. The tracker analyses suffix bits `[d, N)`
-    /// at width `w = N − d` (§ALGO S-3.2).
+    /// at width `w = N − d` (§ALGO S-2.4).
     pub depth: u8,
 
     /// Rank in force while this batch was scored (number of active basis vectors).

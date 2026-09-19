@@ -76,7 +76,7 @@ impl CusumAccumulator {
 
     /// Reset the accumulator to zero.
     ///
-    /// Called after noise injection (§ALGO S-7.4) and optionally by the host
+    /// Called after noise injection (§ALGO S-11.4) and optionally by the host
     /// after acknowledging a regime change.
     pub const fn reset(&mut self) {
         self.accumulator = 0.0;

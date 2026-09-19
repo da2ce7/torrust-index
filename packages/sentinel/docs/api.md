@@ -147,7 +147,7 @@ pub struct BatchReport<C: Copy + Debug> {
 | ------------------------------- | -------------------------------------------------------- |
 | `cell_reports`                  | Per-cell reports for competitive cells ($\mathcal{A}$)   |
 | `ancestor_reports`              | Per-cell reports for ancestor-only cells                 |
-| `coordination_reports`          | Cross-cell coordination analysis (§ALGO S-9.4)           |
+| `coordination_reports`          | Cross-cell coordination analysis (§ALGO S-7.4)           |
 | `contour`                       | Snapshot of G-V Graph spatial structure                  |
 | `health`                        | Operational health snapshot                              |
 | `analysis_set_summary`          | Summary of investment/producing sets                     |
@@ -634,7 +634,7 @@ where
 
 #### `new(config: SentinelConfig<V>) -> Result<Self, ConfigErrors>` · `sec:sentinel:api-spectral-sentinel-new`
 
-Validates the configuration and creates the root tracker. The root tracker is automatically warmed with synthetic noise (§ALGO S-11.2). No other cells are created until the first `ingest()` call triggers analysis set computation.
+Validates the configuration and creates the root tracker. The root tracker is automatically warmed with synthetic noise (§ALGO S-11.1). No other cells are created until the first `ingest()` call triggers analysis set computation.
 
 #### `ingest(&mut self, values: &[C]) -> BatchReport<C>` · `sec:sentinel:api-spectral-sentinel-ingest`
 
@@ -761,7 +761,7 @@ pub struct CentredBits {
 | `len(&self) -> usize`                      | How many of the backing array's slots carry a centred bit.                                                                                                                                                                                                                                            |
 | `is_empty(&self) -> bool`                  | Whether the vector carries no bits at all — the zero-width domain, and exactly `len() == 0`.                                                                                                                                                                                                          |
 | `from_u128(value: u128) -> Self`           | The full 128-bit conversion of a `u128`, identical to `value.to_centred_bits(128)`.                                                                                                                                                                                                                   |
-| `suffix(&self, depth: u8) -> &[f64]`       | The bits from `depth` to `len()` — the working observation for a cell at G-tree depth `depth`, of width `len() - depth`, the leading `depth` bits being constant within that cell and already resolved by routing (§ALGO S-3.2). At depth 0 this is the whole vector; at `depth == len()` it is empty. **Panics** if `depth` exceeds `len()`. |
+| `suffix(&self, depth: u8) -> &[f64]`       | The bits from `depth` to `len()` — the working observation for a cell at G-tree depth `depth`, of width `len() - depth`, the leading `depth` bits being constant within that cell and already resolved by routing (§ALGO S-2.4). At depth 0 this is the whole vector; at `depth == len()` it is empty. **Panics** if `depth` exceeds `len()`. |
 
 ---
 

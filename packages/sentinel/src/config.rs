@@ -276,7 +276,7 @@ pub struct SentinelConfig<V: Accumulator> {
     /// Default: `false`
     pub per_sample_scores: bool,
 
-    /// Maximum number of competitive analysis cells (§ALGO S-4.1).
+    /// Maximum number of competitive analysis cells (§ALGO S-8.1).
     ///
     /// Bounds the competitive targets, not the lengths of their ancestor
     /// chains. For selected depths `d_i`, the current investment set has
@@ -293,7 +293,7 @@ pub struct SentinelConfig<V: Accumulator> {
     pub analysis_k: usize,
 
     /// Maximum V-Tree depth at which entries are considered for
-    /// competitive selection (§ALGO S-4.1).
+    /// competitive selection (§ALGO S-8.1).
     ///
     /// Only V-entries with `v_depth ≤ analysis_depth_cutoff` are
     /// eligible. Deeper entries have not yet proven sufficient

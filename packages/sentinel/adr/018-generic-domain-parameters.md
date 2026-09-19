@@ -1,6 +1,6 @@
 # ADR-S-018: Generic Domain Parameters · `rec:sentinel:generic-coordinate-accumulator-and-domain-width`
 
-**Status:** Accepted **Date:** 2026-03-13 **Spec:** §ALGO S-2.1 (domain), §ALGO S-2.4 (what sentinel owns), §ALGO S-3.2 (suffix encoding), §ALGO S-13.3 (G-V Graph config) **Supersedes:** [ADR-S-003](003-mudlark-integration.md) Part A (type parameters) **Relates to:** [ADR-S-003](003-mudlark-integration.md) (mudlark integration — Part B on Cargo features is unchanged), [ADR-S-002](002-feed-forward-invariant.md) (feed-forward invariant), mudlark [ADR-M-006](../../mudlark/adr/006-generic-parameters.md) (generic parameters), mudlark [ADR-M-009](../../mudlark/adr/009-trait-decomposition.md) (trait decomposition)
+**Status:** Accepted **Date:** 2026-03-13 **Spec:** §ALGO S-2.1 (domain), §ALGO S-1.6 (what sentinel owns), §ALGO S-2.4 (suffix encoding), §ALGO S-13.3 (G-V Graph config) **Supersedes:** [ADR-S-003](003-mudlark-integration.md) Part A (type parameters) **Relates to:** [ADR-S-003](003-mudlark-integration.md) (mudlark integration — Part B on Cargo features is unchanged), [ADR-S-002](002-feed-forward-invariant.md) (feed-forward invariant), mudlark [ADR-M-006](../../mudlark/adr/006-generic-parameters.md) (generic parameters), mudlark [ADR-M-009](../../mudlark/adr/009-trait-decomposition.md) (trait decomposition)
 
 ## Context · `sec:sentinel:domainparams-context`
 
@@ -53,7 +53,7 @@ Existing consumers use `Sentinel128` or `Sentinel64` as appropriate for their do
 
 ### `CentredBitSource`: sentinel's bridge trait · `sec:sentinel:domainparams-centred-bit-source`
 
-The sentinel must convert coordinate values to centred bit vectors for subspace analysis (§ALGO S-3.2). This requires bit-level access that `Coordinate` does not provide. Rather than modify mudlark's trait surface, the sentinel defines a bridge trait of its own:
+The sentinel must convert coordinate values to centred bit vectors for subspace analysis (§ALGO S-2.3). This requires bit-level access that `Coordinate` does not provide. Rather than modify mudlark's trait surface, the sentinel defines a bridge trait of its own:
 
 ```rust
 pub trait CentredBitSource: Coordinate {

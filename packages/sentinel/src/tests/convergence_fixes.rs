@@ -133,7 +133,7 @@ fn clip_exemption_eliminates_feedback_loop() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  Fix 2: Cold→warm initialisation  (§ALGO S-5.2 Phase 3)
+//  Fix 2: Cold→warm initialisation  (§ALGO S-4.2 Phase 3)
 // ════════════════════════════════════════════════════════════
 
 /// Because the latent spread is seeded from the first batch rather than

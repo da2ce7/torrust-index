@@ -16,7 +16,7 @@
 //! | [`noise_injected_at_every_suffix_width`] | suffix | No cell begins scoring cold. Every cell the graph created under traffic has synthetic observations behind it, generated at that cell's own width, so the warm-up schedule reaches cells born deep in the tree and not only the root it started from. A cell that had never seen anything would find its first real batch infinitely surprising, and the sentinel would report the arrival of a new region as an anomaly in it. |
 
 //! Suffix analysis — which part of an observation a cell actually models
-//! (§ALGO S-3.2).
+//! (§ALGO S-2.4).
 //!
 //! A cell's position in the G-tree is a prefix of the coordinate: routing has
 //! already decided the leading bits by the time a value arrives, and within
