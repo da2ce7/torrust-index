@@ -43,7 +43,11 @@ Warming cells do not hold competitive slots. The analysis set contains only onli
 
 ### Priority: Volume-First · `sec:sentinel:deferredwarmup-volume-first-priority`
 
-The priority rule `g.sum` produces root-first ordering as a consequence — shallow cells accumulate descendant volume, satisfying the dependency constraint (ancestors online before descendants) without encoding depth into the priority key.
+The priority key is cached `g.sum` first. Volume leads because a shallow cell accumulates everything beneath it, so ordering on volume alone already places an ancestor at or above every cell in its own subtree — the dependency constraint (ancestors online before descendants) as a consequence of the quantity that also measures which cell is worth warming next.
+
+Depth follows, because volume alone does not decide the cases the constraint is about. A path node whose accumulation is entirely the single active cell below it ties with that cell exactly, and cached volume is an approximation of the node sum besides, so equal volumes are the ordinary case on precisely the chains the ordering exists to protect. Comparing depth next resolves the tie toward the shallower cell.
+
+`GNodeId` is last, a deterministic tie-break between cells of one depth rather than a carrier of the ancestor rule. It cannot carry that rule: identifiers order on the arena slot index and the arena reuses freed slots, so a cell created into a recycled slot can hold a smaller identifier than an ancestor allocated before it, and breaking an equal-volume tie on the identifier alone would warm that descendant first.
 
 ### Synchronous Fallback · `sec:sentinel:deferredwarmup-synchronous-fallback`
 

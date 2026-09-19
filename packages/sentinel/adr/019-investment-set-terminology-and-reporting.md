@@ -70,7 +70,7 @@ These are derived from `cells.len()` (online) plus staging area counts. The stag
 
 ### 2. Fix synchronous drain ordering · `sec:sentinel:investment-synchronous-drain-ordering`
 
-`drain_all_synchronous()` will sort cells by cached `volume` (descending) before draining, matching the background thread's g.sum priority rule.
+`drain_all_synchronous()` will sort cells by cached `volume` (descending), then by depth so that an ancestor drains before the cells beneath it, then by `GNodeId` as the final deterministic tie-break — the whole of the background thread's g.sum priority rule rather than its leading term. Both layers below volume are load-bearing: equal volumes are the ordinary case on an ancestor chain, and the identifier cannot stand in for depth because arena slot reuse lets a descendant hold the smaller one (ADR-S-017).
 
 ### 3. Align source terminology · `sec:sentinel:investment-source-terminology`
 
