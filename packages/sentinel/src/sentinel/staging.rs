@@ -56,6 +56,7 @@
 //! | [`ready_competitive_target_stays_in_warming_count_until_promotion`] | staging | A completed competitive cell can reach the ready queue after an ingest has passed its promotion point. It remains inside the warm-up pipeline and outside the producing set until the next promotion, so both health counts continue to include it while it waits. |
 //! | [`a_newly_queued_cell_carries_its_volume`] | staging | A cell joining the queue carries its volume immediately. The worker is stopped before enqueueing while deferred staging remains selected, so every queued cell is available for the volume assertions regardless of thread scheduling. |
 //! | [`return_warming_restores_cell`] | staging | A cell handed back unfinished rejoins the warming set and stops being in flight, with its accumulated rounds intact. Background warming can therefore be interrupted between rounds — the thread need not carry a cell to completion once it has taken it. |
+//! | [`a_returned_cell_carries_the_volume_the_graph_has_now`] | staging | A cell handed back rejoins the queue at the volume the graph has now, not the one it carried out. The refresh runs on the main thread while the worker holds the cell, and the checkout spans exactly the noise injection — the expensive part of the pass, and so the part an ingest is most likely to overlap. Restoring the carried volume would leave the busiest cell in the area queued at its pre-ingest importance, and the next checkout — the one decision the cached volume exists to make — would go to a rival the traffic has already passed. |
 //! | [`finish_warming_moves_to_ready`] | staging | A cell handed back finished joins the ready queue instead of the warming set, and is no longer in flight. Which of the two return paths the background thread takes is what decides the cell's fate, so completion is declared by the worker that did the rounds rather than re-derived by the staging area. |
 //! | [`eviction_of_in_flight_cell_discards_on_return`] | staging | A cell evicted while a background thread was working on it is discarded when it comes back, not resurrected: the eviction sweep removes its in-flight mark, and a return with no mark to clear keeps nothing. The warming work already spent is lost, which is the deliberate trade — a cell that has left the analysis set must not reappear in it because a thread happened to be holding it. |
 //! | [`gnode_set_includes_all_states`] | staging | cites (´claim:staging:presence-is-answered-across-every-state-a-staged-cell-can-occupy´) |
@@ -82,7 +83,8 @@ pub struct WarmingCell<C: Coordinate> {
 
     /// Cached volume (g.sum) for priority ordering, erased to `f64`.
     /// Updated by the main thread during `reconcile_analysis_set()` via
-    /// [`StagingArea::update_volumes`].
+    /// [`StagingArea::update_volumes`] — for a cell a worker has checked out,
+    /// through the in-flight record that carries the refresh back to it.
     pub volume: f64,
 }
 
@@ -92,6 +94,31 @@ impl<C: Coordinate> WarmingCell<C> {
     pub const fn is_ready(&self) -> bool {
         self.completed_rounds >= self.target_rounds
     }
+}
+
+// ─── InFlightCell ───────────────────────────────────────────
+
+/// What the staging area keeps about a cell while a worker holds it.
+///
+/// The worker owns the cell itself, so everything reconciliation learns about
+/// it in the meantime is recorded here and copied back when the cell returns.
+/// Both fields are the main thread's to write and the return paths' to read;
+/// neither needs anything from the tracker the worker is holding.
+struct InFlightCell {
+    /// Selection flag as of the last reconciliation.
+    is_competitive: bool,
+
+    /// Cached volume as of the last refresh from the graph.
+    volume: f64,
+}
+
+/// Read a G-node's volume (g.sum) as the priority queue caches it.
+///
+/// Every refresh goes through this one reading, so a cell in flight and a cell
+/// waiting in the warming map cannot come to hold volumes derived differently
+/// — including for a node the graph no longer has, which is nought to both.
+fn volume_of<C: Coordinate, V: Inspectable, const N: u32>(graph: &GvGraph<C, V, N>, gnode: GNodeId) -> f64 {
+    graph.gnode_info(gnode).map_or(0.0, |info| info.sum.to_f64_approx())
 }
 
 // ─── StagingArea ────────────────────────────────────────────
@@ -118,10 +145,13 @@ pub struct StagingArea<C: Coordinate> {
     /// been temporarily removed from `warming` so the thread can
     /// work on them without holding the lock. [`contains`] and
     /// [`retain_in_set`] account for them.
-    /// Cells checked out for background warming, each carrying the
-    /// latest competitive flag from reconciliation so the reported count of
-    /// competitive targets stays current while it is away.
-    in_flight: BTreeMap<GNodeId, bool>,
+    /// Cells checked out for background warming, each carrying what
+    /// reconciliation has learned about the cell since it left: the latest
+    /// competitive flag, so the reported count of competitive targets stays
+    /// current while it is away, and the latest cached volume, so it rejoins
+    /// the queue at the priority its traffic has now rather than the one it
+    /// carried out.
+    in_flight: BTreeMap<GNodeId, InFlightCell>,
 }
 
 impl<C: Coordinate> StagingArea<C> {
@@ -196,19 +226,34 @@ impl<C: Coordinate> StagingArea<C> {
                 .then_with(|| b_gnode.cmp(a_gnode))
         })?;
         let wc = self.warming.remove(&gnode)?;
-        self.in_flight.insert(gnode, wc.cell.is_competitive);
+        self.in_flight.insert(
+            gnode,
+            InFlightCell {
+                is_competitive: wc.cell.is_competitive,
+                volume: wc.volume,
+            },
+        );
         Some((gnode, wc))
     }
 
     /// Return an in-flight cell to the warming map (not yet ready).
     ///
+    /// The record the checkout left behind is what the cell rejoins the queue
+    /// with: the worker was away for the whole of an observation pass, so the
+    /// flag and the volume it carried out are both older than the ones
+    /// reconciliation has since recorded here. Restoring the carried volume
+    /// instead would let an ingest that landed mid-warm-up leave the cell
+    /// queued at its pre-ingest importance, and the next checkout would be
+    /// decided by traffic the graph has already moved past.
+    ///
     /// If the cell was evicted while in-flight (removed from
     /// `in_flight` by [`retain_in_set`]), the cell is silently
     /// discarded — the work is wasted but correctness is preserved.
     pub fn return_warming(&mut self, gnode: GNodeId, wc: WarmingCell<C>) {
-        if let Some(is_competitive) = self.in_flight.remove(&gnode) {
+        if let Some(record) = self.in_flight.remove(&gnode) {
             let mut wc = wc;
-            wc.cell.is_competitive = is_competitive;
+            wc.cell.is_competitive = record.is_competitive;
+            wc.volume = record.volume;
             self.warming.insert(gnode, wc);
         }
         // else: evicted while in-flight — discard.
@@ -216,12 +261,15 @@ impl<C: Coordinate> StagingArea<C> {
 
     /// Complete an in-flight cell and add it to the ready queue.
     ///
+    /// Only the flag is copied back: the ready queue is served in the order it
+    /// was filled, so a completed cell has no further use for a priority.
+    ///
     /// If the cell was evicted while in-flight, it is silently
     /// discarded.
     pub fn finish_warming(&mut self, gnode: GNodeId, cell: CellState<C>) {
-        if let Some(is_competitive) = self.in_flight.remove(&gnode) {
+        if let Some(record) = self.in_flight.remove(&gnode) {
             let mut cell = cell;
-            cell.is_competitive = is_competitive;
+            cell.is_competitive = record.is_competitive;
             self.ready.push((gnode, cell));
         }
         // else: evicted while in-flight — discard.
@@ -265,8 +313,8 @@ impl<C: Coordinate> StagingArea<C> {
     /// the state instead.
     #[cfg(test)]
     pub(crate) fn record_checkout_for_test(&mut self, gnode: GNodeId, is_competitive: bool) {
-        self.warming.remove(&gnode);
-        self.in_flight.insert(gnode, is_competitive);
+        let volume = self.warming.remove(&gnode).map_or(0.0, |wc| wc.volume);
+        self.in_flight.insert(gnode, InFlightCell { is_competitive, volume });
     }
 
     // ── Warm-one-batch (used by background thread) ──────
@@ -329,7 +377,7 @@ impl<C: Coordinate> StagingArea<C> {
 
         // Update volumes from the graph for remaining warming cells.
         for (&g, wc) in &mut self.warming {
-            wc.volume = graph.gnode_info(g).map_or(0.0, |info| info.sum.to_f64_approx());
+            wc.volume = volume_of(graph, g);
         }
 
         true
@@ -393,8 +441,8 @@ impl<C: Coordinate> StagingArea<C> {
         if let Some(wc) = self.warming.get_mut(&gnode) {
             wc.cell.is_competitive = is_competitive;
         }
-        if let Some(flag) = self.in_flight.get_mut(&gnode) {
-            *flag = is_competitive;
+        if let Some(record) = self.in_flight.get_mut(&gnode) {
+            record.is_competitive = is_competitive;
         }
         for (ready_gnode, cell) in &mut self.ready {
             if *ready_gnode == gnode {
@@ -405,13 +453,24 @@ impl<C: Coordinate> StagingArea<C> {
 
     // ── Volume update ───────────────────────────────────
 
-    /// Update cached volumes for warming cells from the G-V Graph.
+    /// Update cached volumes for staged cells from the G-V Graph.
     ///
     /// Called by the main thread after G-V Graph observation so the
     /// background thread can prioritise cells by current importance.
+    ///
+    /// A cell a worker has checked out is refreshed through its in-flight
+    /// record rather than skipped. The checkout takes the cell out of the
+    /// warming map for exactly as long as the noise injection runs, which is
+    /// the expensive part of a pass and so the part an ingest is most likely
+    /// to overlap; a refresh that reached only the waiting cells would leave
+    /// the cell most recently judged the busiest as the one cell whose
+    /// importance the queue never learns.
     pub fn update_volumes<V: Inspectable, const N: u32>(&mut self, graph: &GvGraph<C, V, N>) {
         for (&g, wc) in &mut self.warming {
-            wc.volume = graph.gnode_info(g).map_or(0.0, |info| info.sum.to_f64_approx());
+            wc.volume = volume_of(graph, g);
+        }
+        for (&g, record) in &mut self.in_flight {
+            record.volume = volume_of(graph, g);
         }
     }
 
@@ -502,7 +561,7 @@ impl<C: Coordinate> StagingArea<C> {
     pub fn warming_competitive_count(&self) -> usize {
         let waiting = self.warming.values().filter(|wc| wc.cell.is_competitive).count();
         let ready = self.ready.iter().filter(|(_, cell)| cell.is_competitive).count();
-        let in_flight = self.in_flight.values().filter(|&&is_competitive| is_competitive).count();
+        let in_flight = self.in_flight.values().filter(|record| record.is_competitive).count();
         waiting + ready + in_flight
     }
 
@@ -1180,7 +1239,7 @@ mod tests {
             assert!(ready_competitive > 0, "the completed target must be awaiting promotion");
             let competitive_total = staging.warming.values().filter(|cell| cell.cell.is_competitive).count()
                 + ready_competitive
-                + staging.in_flight.values().filter(|&&is_competitive| is_competitive).count();
+                + staging.in_flight.values().filter(|record| record.is_competitive).count();
             (staging.total_count(), competitive_total)
         };
 
@@ -1260,6 +1319,63 @@ mod tests {
         staging.return_warming(gnode, wc);
         assert_eq!(staging.warming_count(), 1);
         assert_eq!(staging.in_flight_count(), 0);
+    }
+
+    /// A cell handed back rejoins the queue at the volume the graph has now,
+    /// not the one it carried out. The refresh runs on the main thread while
+    /// the worker holds the cell, and the checkout spans exactly the noise
+    /// injection — the expensive part of the pass, and so the part an ingest
+    /// is most likely to overlap. Restoring the carried volume would leave the
+    /// busiest cell in the area queued at its pre-ingest importance, and the
+    /// next checkout — the one decision the cached volume exists to make —
+    /// would go to a rival the traffic has already passed.
+    ///
+    /// ´claim:staging:a-cell-handed-back-rejoins-the-queue-at-the-volume-the-graph-has-now´
+    /// ´test:unit:a-returned-cell-carries-the-volume-the-graph-has-now´
+    #[test]
+    fn a_returned_cell_carries_the_volume_the_graph_has_now() {
+        let mut staging = StagingArea::<u128>::new();
+        let (mut graph, _root, left, right) = split_graph();
+
+        staging.enqueue(left, make_cell(1), 3);
+        staging.enqueue(right, make_cell(1), 3);
+
+        // Check the left cell out while the queue holds it to be the busiest.
+        let carried = 1.0;
+        staging.warming.get_mut(&left).unwrap().volume = carried;
+        staging.warming.get_mut(&right).unwrap().volume = 0.0;
+        let (gnode, wc) = staging.take_highest_priority().unwrap();
+        assert_eq!(gnode, left);
+
+        // An ingest lands in the left half while the worker holds the cell.
+        for _ in 0..20 {
+            graph.observe(0u128, 1u64);
+        }
+        staging.update_volumes(&graph);
+
+        let refreshed = graph.gnode_info(left).map_or(0.0, |info| info.sum.to_f64_approx());
+        let rival = graph.gnode_info(right).map_or(0.0, |info| info.sum.to_f64_approx());
+        assert!(
+            carried < rival,
+            "the volume carried out has to lose to the rival, or the ordering proves nothing"
+        );
+        assert!(
+            rival < refreshed,
+            "the ingest has to carry the checked-out cell past the rival"
+        );
+
+        staging.return_warming(gnode, wc);
+        let returned = staging.warming.get(&left).expect("the cell rejoins the warming map").volume;
+        assert!(
+            (returned - refreshed).abs() < f64::EPSILON,
+            "a cell handed back carries the volume the graph has now"
+        );
+
+        let (next, _next_wc) = staging.take_highest_priority().unwrap();
+        assert_eq!(
+            next, left,
+            "the next checkout follows the refreshed volume rather than the one carried out"
+        );
     }
 
     /// A cell handed back finished joins the ready queue instead of the
