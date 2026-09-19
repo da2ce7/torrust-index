@@ -242,7 +242,7 @@ A secondary EWMA with decay factor `cusum_slow_decay` (default 0.999, half-life 
 3. **Break ties** by interval start (deterministic, spatially stable).
 4. **Close** under G-tree ancestry by walking parent pointers — forming the **investment set** $\mathcal{I}$ (§ALGO S-8.2).
 
-The root tracker is permanent and never participates in competitive selection (§ALGO S-8.4). Reconciliation after each observation pass reconciles the investment set: entering cells are created and enqueued for warm-up, exiting cells are eagerly removed (§ALGO S-8.5, [ADR-S-019](../adr/019-investment-set-terminology-and-reporting.md)).
+The root tracker is permanent (§ALGO S-8.4) and never participates in competitive selection (§ALGO S-8.1). Reconciliation after each observation pass reconciles the investment set: entering cells are created and enqueued for warm-up, exiting cells are eagerly removed (§ALGO S-8.5, [ADR-S-019](../adr/019-investment-set-terminology-and-reporting.md)).
 
 ---
 

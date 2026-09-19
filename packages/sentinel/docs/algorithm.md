@@ -1079,7 +1079,7 @@ The analysis selector determines which cells from the spatial layer receive stat
 
 ### 8.1 Competitive Selection · `sec:sentinel:algorithm-competitive-selection`
 
-Let $\mathcal{E} = \{v \in \text{V-entries} : \text{depth}_V(v) \leq L \;\wedge\; w(v) \geq 2\}$ be the **eligible set** — all V-entries within the depth cutoff whose analysis width $w = N - d$ is at least 2. The $w \geq 2$ predicate excludes cells where the subspace algebra is undefined (§4.1). The **competitive targets** are:
+Let $\mathcal{E} = \{v \in \text{V-entries} : v \neq \mathrm{root} \;\wedge\; \text{depth}_V(v) \leq L \;\wedge\; w(v) \geq 2\}$ be the **eligible set** — all V-entries other than the root, within the depth cutoff, whose analysis width $w = N - d$ is at least 2. The $w \geq 2$ predicate excludes cells where the subspace algebra is undefined (§4.1). The **competitive targets** are:
 
 $$\mathcal{T} = \text{top}_K\!\big(\mathcal{E},\; v.\text{importance}\big)$$
 
@@ -1091,6 +1091,8 @@ If $|\mathcal{E}| \leq K$, then $\mathcal{T} = \mathcal{E}$.
 | $L$ (depth cutoff)    | $\geq 0$   | V-Tree depth ceiling for eligibility           |
 
 The selection criteria use V-Tree ranking (depth and importance) as the sole competitive mechanism. The $w \geq 2$ predicate is a static geometric precondition excluding cells where the subspace algebra is undefined (§4.1), not a dynamic structural filter. The analysis selector does not inspect G-Tree structural state (terminal, semi-internal, or internal). This is a deliberate design choice; see the design note below.
+
+**The root is never a target.** The G-Tree root is excluded from $\mathcal{E}$, and so from $\mathcal{T}$, however large its importance grows. It belongs to $\mathcal{I}$ by construction (§8.2) and reaches it no other way. Competition ranks regions against one another to decide which are worth modelling separately; the root is the whole domain, so it has nothing to be ranked against — it answers the population-level question rather than a regional one, and it is permanent (§8.4), which leaves nothing for a competitive slot to decide about it. The exclusion applies before the top-$K$ cut rather than after it: the root's importance is the traffic it accumulated before its first split, frozen there by that split while its children start from zero, so it outranks every real candidate until one of them overtakes a total the root is no longer adding to. Dropped after the cut it would hold a slot for that whole period, and at $K = 1$ the competitive set would stay empty throughout, with no descendant ever able to enter it.
 
 **Ties at the boundary.** When more than $K$ eligible entries exist, ties in importance at the $K$-th position are broken by the left endpoint of the cell's spatial interval (deterministic, spatially stable).
 
