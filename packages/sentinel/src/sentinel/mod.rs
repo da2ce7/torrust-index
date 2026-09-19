@@ -710,6 +710,51 @@ where
             .fail_worker_for_test();
     }
 
+    /// Leave the sentinel in the state a warming worker leaves when it unwinds
+    /// between taking a cell out of the staging area and returning it, and
+    /// report which cell was stranded.
+    ///
+    /// The state is built rather than waited for. The window in which a panic
+    /// strands a cell is a few instructions wide, and whether a panic lands
+    /// inside it is the scheduler's decision: a test that waited for one would
+    /// be asserting about the box it ran on. What the recovery has to handle is
+    /// the state, and the state is fully described — an identifier the analysis
+    /// set still holds, absent from the producing set, carrying a checkout
+    /// record that no living thread will ever redeem, because the tracker it
+    /// named went down with the worker's stack.
+    ///
+    /// The worker is stopped first, so every step after it runs against a
+    /// staging area no other thread is touching.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sentinel owns no warming worker, or if it holds no
+    /// producing cell below the root to strand — in either case the caller has
+    /// not built the situation it means to test.
+    #[cfg(test)]
+    pub(crate) fn strand_a_cell_on_a_failed_warming_worker_for_test(&mut self) -> GNodeId {
+        self.fail_warming_worker_for_test();
+
+        let stranded = self
+            .analysis_set
+            .full()
+            .iter()
+            .map(|entry| entry.gnode)
+            .find(|gnode| *gnode != self.root_gnode && self.cells.contains_key(gnode))
+            .expect("the test sentinel must hold a producing cell below the root");
+
+        let cell = self
+            .cells
+            .remove(&stranded)
+            .expect("the cell was just read out of the producing set");
+        self.staging
+            .lock()
+            .expect("staging mutex poisoned")
+            .record_checkout_for_test(stranded, cell.is_competitive);
+
+        stranded
+    }
+
     /// Read-only access to the G-V Graph.
     #[must_use]
     pub const fn graph(&self) -> &GvGraph<C, V, N> {
@@ -1024,6 +1069,44 @@ where
     /// inline path. The background-thread version (Step 3) will
     /// remove the drain loop.
     fn reconcile_analysis_set(&mut self) {
+        // ── Reap a worker that stopped on its own (Step 3) ──
+        //
+        // The warm-up dispatch below keys on whether a warming worker is
+        // present, and a worker that panicked leaves its handle standing. Left
+        // alone, that handle answers for a thread that is gone: every later
+        // reconciliation takes the background branch, skips the synchronous
+        // drain, and notifies a condition variable nobody is waiting on, so
+        // every cell staged from that point on waits for a worker that will
+        // never take it and never comes online. The failure is silent in the
+        // worst way — the engine goes on producing reports, from a cell set
+        // that has stopped growing.
+        //
+        // Reaping restores the state the engine already has an answer for. An
+        // absent handle is a complete fallback rather than a half-state, which
+        // is the same reading `reset` relies on when the environment refuses it
+        // a thread: the drain runs inline, every staged cell still comes
+        // online, and every report is produced as it would have been. What a
+        // host loses is the latency background warming was enabled for, and it
+        // is told so; what it keeps is every report.
+        //
+        // The fallback stands for the rest of this sentinel's epoch rather than
+        // respawning, because nothing here can tell the two ways a worker dies
+        // apart. Its only panics are its own reads of a poisoned staging mutex,
+        // and a mutex poisoned by whatever killed the first worker is still
+        // poisoned for the second: a respawn on each reconciliation would log a
+        // fresh failure every batch and still never warm a cell. `reset` is the
+        // caller's way back to a background worker, and it is explicit.
+        let worker_failed = self
+            .warming_thread
+            .as_ref()
+            .is_some_and(warming_thread::WarmingThreadHandle::reap_if_finished);
+        if worker_failed {
+            // Dropping the handle takes the staging lock to signal a worker
+            // that is already gone, so it happens before this thread takes that
+            // lock below rather than inside it.
+            self.warming_thread = None;
+        }
+
         let new_set = AnalysisSet::recompute::<N>(&self.graph, self.config.analysis_k, self.config.analysis_depth_cutoff);
         self.degenerate_cells_skipped = new_set.degenerate_cells_skipped();
 
@@ -1044,6 +1127,23 @@ where
         // a single lock acquisition to avoid repeated locking.
         {
             let mut staging = self.staging.lock().expect("staging mutex poisoned");
+
+            // A cell the reaped worker had checked out went down with it: the
+            // tracker lived on that thread's stack, and only that thread could
+            // have returned it. What is left is the checkout record, and while
+            // it stands the staging area answers that the cell is present, so
+            // the enqueue loop below skips an identifier that nothing holds and
+            // the cell is stranded between the two sets forever. Dropping the
+            // record now, before that loop, is what lets the cell be built
+            // again in this same pass — at the cost of the warm-up rounds it
+            // had already run, the same trade eviction in flight already makes.
+            if worker_failed {
+                let abandoned = staging.abandon_in_flight();
+                tracing::error!(
+                    abandoned,
+                    "the warming worker is no longer running — warming cells synchronously from here and rebuilding the cells it was holding"
+                );
+            }
 
             staging.retain_in_set(&new_gnodes);
 

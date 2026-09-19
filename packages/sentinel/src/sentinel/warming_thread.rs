@@ -27,6 +27,13 @@
 //! non-panicking policy, because a destructor must not add a second panic to an
 //! unwind already in progress.
 //!
+//! A worker can also stop without being asked to, by panicking. Nothing about
+//! the handle changes when it does, so the owner reaps it at the point where it
+//! would otherwise hand the worker more work:
+//! [`WarmingThreadHandle::reap_if_finished`] joins a thread that has already
+//! stopped, records the failure the same way, and empties the handle so the
+//! owner can see that there is no worker left to dispatch to.
+//!
 //! The lock is what makes the transition observable. The worker holds the
 //! staging mutex from the moment it reads the two predicates until
 //! `Condvar::wait` releases it, so a writer that stores the flag without
@@ -163,6 +170,46 @@ impl<C: Coordinate> WarmingThreadHandle<C> {
         if handle.join().is_err() {
             tracing::error!("warming thread panicked during sentinel shutdown");
         }
+    }
+
+    /// Join the worker if it has already stopped, reporting whether it had.
+    ///
+    /// `false` means the worker is still running and the handle is still worth
+    /// notifying. `true` means the thread is gone and nothing will serve the
+    /// staging area again through this handle, so the owner must stop treating
+    /// it as a live worker; the handle is left empty, so a later
+    /// [`shutdown`](Self::shutdown) or destruction finds nothing to join and
+    /// records nothing twice.
+    ///
+    /// A failed join is recorded through `tracing` and not raised, the same
+    /// policy [`shutdown`](Self::shutdown) and the destructor follow: the
+    /// caller is an ingest on the host's own thread, and a background failure
+    /// must not take that thread down with it. A clean exit is silent, because
+    /// the only way to reach one is a shutdown the owner asked for.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the mutex guarding the join handle is poisoned, which
+    /// this type cannot arrange: every one of its own accesses holds that lock
+    /// across a `take` and nothing else, and the handle it moves has no
+    /// destructor that can unwind.
+    pub(crate) fn reap_if_finished(&self) -> bool {
+        let finished = {
+            let mut slot = self.handle.lock().expect("warming handle poisoned");
+            if slot.as_ref().is_some_and(JoinHandle::is_finished) {
+                slot.take()
+            } else {
+                None
+            }
+        };
+
+        let Some(handle) = finished else {
+            return false;
+        };
+        if handle.join().is_err() {
+            tracing::error!("warming thread panicked — the sentinel is warming cells synchronously from here");
+        }
+        true
     }
 
     /// Make the worker fail through its ordinary poisoned-staging path and

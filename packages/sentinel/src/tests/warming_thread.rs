@@ -27,6 +27,7 @@
 //! | [`shutdown_returns_under_repeated_spawn_and_stop_cycles`] | warmup | Shutting the warming thread down returns, every time, over a long run of spawn-and-stop cycles that does nothing else — the arrangement that puts the request at its most likely to land while the worker is between reading its predicate and sleeping on it. A shutdown that is lost in that window does not fail loudly: the worker sleeps on, the join waits for it, and the sentinel's own drop never completes, so what a host would see is a process that stops rather than an error it can act on. |
 //! | [`dropping_a_sentinel_consumes_a_failed_worker_join`] | warmup | A warming worker can fail before its owner is destroyed. Destruction still completes without unwinding, because the drop path records the failed join instead of turning a background failure into a destructor panic. |
 //! | [`reset_consumes_a_failed_worker_join`] | warmup | Reset follows the same host-preserving policy as destruction: a worker that has already failed is joined and recorded, then reset rebuilds the sentinel instead of panicking over a failure that happened in the background. |
+//! | [`a_failed_warming_worker_still_brings_every_cell_online`] | warmup | A sentinel whose warming worker has died still brings every cell the selector pays for online: the cell the worker was holding when it went, and every cell staged afterwards. The dispatch keys on whether a worker is present, so a dead worker left standing would send every later reconciliation down the background branch — past the synchronous drain, into a notification nobody receives — and the engine would go on issuing reports from a cell set that had stopped growing. |
 //! | [`selection_refresh_survives_warming_handoffs`] | warmup | Waiting, in-flight and ready cells keep the latest selection flag across both worker return paths. |
 
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -132,6 +133,78 @@ fn reset_consumes_a_failed_worker_join() {
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| sentinel.reset()));
 
     assert!(outcome.is_ok(), "reset must consume the failed worker join");
+}
+
+/// A sentinel whose warming worker has died still brings every cell the
+/// selector pays for online: the cell the worker was holding when it went, and
+/// every cell staged afterwards. The dispatch keys on whether a worker is
+/// present, so a dead worker left standing would send every later
+/// reconciliation down the background branch — past the synchronous drain, into
+/// a notification nobody receives — and the engine would go on issuing reports
+/// from a cell set that had stopped growing.
+///
+/// ´claim:warmup:a-failed-warming-worker-still-brings-every-cell-online´
+/// ´test:crate:a-failed-warming-worker-still-brings-every-cell-online´
+#[test]
+fn a_failed_warming_worker_still_brings_every_cell_online() {
+    let config = SentinelConfig::<u64> {
+        analysis_k: 1,
+        split_threshold: 1,
+        d_create: 1,
+        d_evict: 2,
+        max_rank: 1,
+        noise_batch_size: 1,
+        noise_schedule: NoiseSchedule::Explicit(vec![0, 2]),
+        background_warming: true,
+        noise_seed: Some(7),
+        ..SentinelConfig::default()
+    };
+    let mut sentinel = SpectralSentinel::<u64, u64, 16>::new(config).expect("the environment must grant a warming thread");
+    for step in 0..8_u64 {
+        sentinel.ingest(&[step * 4_096]);
+    }
+
+    let stranded = sentinel.strand_a_cell_on_a_failed_warming_worker_for_test();
+    assert!(
+        !sentinel.cell_gnodes().contains(&stranded),
+        "the stranded cell must start off the producing set, or the witness proves nothing"
+    );
+
+    // One ingest is the whole recovery: the reconciliation it runs is where the
+    // dead worker is reaped, where the checkout record it left is dropped, and
+    // where the drain that replaces it runs.
+    sentinel.ingest(&[0]);
+
+    assert!(
+        sentinel.cell_gnodes().contains(&stranded),
+        "the cell the worker was holding when it died must be built again and brought online, \
+         not left stranded between the producing set and a checkout record nothing will redeem"
+    );
+
+    // Cells staged after the worker died have no one to warm them but the
+    // synchronous drain, which only runs if the dispatch can see that the
+    // worker is gone.
+    for step in 8..16_u64 {
+        sentinel.ingest(&[step * 4_096]);
+    }
+
+    let producing = sentinel.cell_gnodes();
+    let waiting: Vec<_> = sentinel
+        .analysis_set()
+        .full()
+        .iter()
+        .map(|entry| entry.gnode)
+        .filter(|gnode| !producing.contains(gnode))
+        .collect();
+    assert!(
+        waiting.is_empty(),
+        "every cell the selector pays for must be online after the worker died, but {waiting:?} are still waiting"
+    );
+    assert_eq!(
+        sentinel.health().warming_trackers,
+        0,
+        "no cell may be left in the staging area once the synchronous drain has taken over"
+    );
 }
 
 /// Waiting, in-flight and ready cells keep the latest selection flag across both worker return paths.

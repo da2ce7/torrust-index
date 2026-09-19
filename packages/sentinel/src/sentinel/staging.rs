@@ -227,6 +227,48 @@ impl<C: Coordinate> StagingArea<C> {
         // else: evicted while in-flight — discard.
     }
 
+    /// Drop every in-flight record, reporting how many were dropped.
+    ///
+    /// Only the background worker checks cells out, and only its owner calls
+    /// this, and only once that worker has been joined. With no worker left to
+    /// run, every record standing here names a cell whose tracker went down
+    /// with the thread that was holding it: nothing will ever return it through
+    /// [`return_warming`] or [`finish_warming`], and the record is the sole
+    /// remaining trace of it.
+    ///
+    /// Dropping the record is what lets the cell be built again. A record left
+    /// standing makes [`contains`] answer for a cell that nothing holds, so
+    /// reconciliation reads the identifier as already staged and never enqueues
+    /// it — the cell is absent from the staging area and from the producing set
+    /// at the same time, permanently. The counts are the lesser half of it:
+    /// [`total_count`] and [`warming_competitive_count`] would go on reporting
+    /// warm-up work that no thread is doing.
+    ///
+    /// The progress those cells had accumulated is lost with them, which is the
+    /// same trade [`retain_in_set`] already makes for a cell evicted while in
+    /// flight: a fresh warm-up is recoverable, a cell that never comes back is
+    /// not.
+    pub(crate) fn abandon_in_flight(&mut self) -> usize {
+        let abandoned = self.in_flight.len();
+        self.in_flight.clear();
+        abandoned
+    }
+
+    /// Record a checkout for a cell whose tracker the caller holds, or has
+    /// destroyed, without routing it through the warming map.
+    ///
+    /// Reproduces the half of [`take_highest_priority`] that survives a worker
+    /// which unwinds before returning its cell: the record stands, and the cell
+    /// it names is gone. A test cannot reach that state by waiting for a panic
+    /// to land inside the few instructions where it strands a cell — whether it
+    /// lands there is the scheduler's decision, not the test's — so it builds
+    /// the state instead.
+    #[cfg(test)]
+    pub(crate) fn record_checkout_for_test(&mut self, gnode: GNodeId, is_competitive: bool) {
+        self.warming.remove(&gnode);
+        self.in_flight.insert(gnode, is_competitive);
+    }
+
     // ── Warm-one-batch (used by background thread) ──────
 
     /// Pick the highest-priority warming cell (largest `volume`) and
