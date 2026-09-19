@@ -1,6 +1,6 @@
 # ADR-S-002: Feed-Forward Invariant · `rec:sentinel:unit-delta-feed-forward-spatial-analysis`
 
-**Status:** Implemented (2026-03-09) **Date:** 2026-03-08 **Spec:** §ALGO S-2.4 (what sentinel owns vs inherits), §ALGO S-9.1 Step 2 (volume accounting), §ALGO S-9.2 (step ordering) **Relates to:** [ADR-S-001](001-measures-not-opinions.md) (measures not opinions), [ADR-S-003](003-mudlark-integration.md) (V = u64)
+**Status:** Implemented (2026-03-09) **Date:** 2026-03-08 **Spec:** §ALGO S-1.6 (what sentinel owns vs inherits), §ALGO S-9.1 Step 2 (volume accounting), §ALGO S-9.2 (step ordering) **Relates to:** [ADR-S-001](001-measures-not-opinions.md) (measures not opinions), [ADR-S-003](003-mudlark-integration.md) (V = u64)
 
 ## Context · `sec:sentinel:feedforward-context`
 

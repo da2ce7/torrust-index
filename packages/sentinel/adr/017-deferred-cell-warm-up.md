@@ -33,7 +33,7 @@ Observations destined for a warming cell are routed to the nearest **online** an
 
 ### Coordination During Warm-Up · `sec:sentinel:deferredwarmup-coordination`
 
-Warming cells do not activate coordination contexts. Coordination activates only at promotion, at which point the cell's baselines are converged. Each newly activated coordination context runs a cheap inline warm-up (§ALGO S-9.8) using Gamma-sampled synthetic score vectors derived from the participating cells' mature baselines.
+Warming cells do not activate coordination contexts. Coordination activates only at promotion, at which point the cell's baselines are converged. Each newly activated coordination context runs a cheap inline warm-up (§ALGO S-11.7) using Gamma-sampled synthetic score vectors derived from the participating cells' mature baselines.
 
 ### No Slot Reservation · `sec:sentinel:deferredwarmup-no-slot-reservation`
 

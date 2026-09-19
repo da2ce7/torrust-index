@@ -1,6 +1,6 @@
 # ADR-S-001: Measures Not Opinions · `rec:sentinel:raw-measurements-with-host-owned-policy`
 
-**Status:** Implemented **Date:** 2026-03-08 **Spec:** §ALGO S-1.2 (layer responsibilities — "sentinel measures; host decides")
+**Status:** Implemented **Date:** 2026-03-08 **Spec:** §ALGO S-1.5 (layer responsibilities — "sentinel measures; host decides")
 
 ## Context · `sec:sentinel:measure-context`
 

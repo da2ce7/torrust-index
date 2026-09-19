@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // SPDX-FileCopyrightText: 2026 Torrust project contributors
 
-//! Staging area for deferred cell warm-up (S1, §ALGO S-18.2).
+//! Staging area for deferred cell warm-up (S1, §ALGO S-11.6).
 //!
 //! New analysis cells are enqueued here for background noise injection
 //! instead of being warmed inline during `ingest()`. This decouples
