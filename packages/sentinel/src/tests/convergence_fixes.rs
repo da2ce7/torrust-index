@@ -34,7 +34,7 @@
 //!
 //! - §ALGO S-4.2 Phase 3 — Latent distribution cold→warm
 //! - §ALGO S-6.4 — Clip-pressure EWMA / graduated clip formula
-//! - §ALGO S-7.1.1 — EWMA outlier filter / clipping ceiling
+//! - §ALGO S-6.1.1 — EWMA outlier filter / clipping ceiling
 //! - §ALGO S-11.5 — Maturity tracking (noise influence η)
 //! - ADR-S-013 — Warm-up convergence benchmark
 //!

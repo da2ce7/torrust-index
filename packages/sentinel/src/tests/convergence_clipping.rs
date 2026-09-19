@@ -55,7 +55,7 @@ struct RoundSnap {
 }
 
 // ════════════════════════════════════════════════════════════
-//  1. Fast EWMA upper-tail clip  (§ALGO S-7.1.1)
+//  1. Fast EWMA upper-tail clip  (§ALGO S-6.1.1)
 // ════════════════════════════════════════════════════════════
 
 /// Rejecting the upper tail leaves the settled baseline where an unclipped run

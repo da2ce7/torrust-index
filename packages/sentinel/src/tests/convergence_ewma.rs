@@ -32,7 +32,7 @@
 //!
 //! # §-references
 //!
-//! - §ALGO S-7.1.1 — EWMA outlier filter
+//! - §ALGO S-6.1.1 — EWMA outlier filter
 //! - ADR-S-013 — Warm-up convergence benchmark
 //!
 //! # Test index

@@ -71,7 +71,7 @@ Unit tests live in `src/tests/` (crate-level) and integration tests in `tests/` 
 | `tests/spray_resistance.rs`          | Budget enforcement under adversarial spray                                  |
 | `tests/determinism.rs`               | Reproducibility given fixed seed                                            |
 | `tests/serde_roundtrip.rs`           | Config/report serialisation round-trips                                     |
-| `tests/ancestor_chain.rs`            | Multi-scale ancestor chain properties (§ALGO S-4.4–4.9)                     |
+| `tests/ancestor_chain.rs`            | Multi-scale ancestor chain properties (§ALGO S-16)                          |
 | `tests/api.rs`                       | Public API contract tests for `SpectralSentinel`                            |
 | `tests/clip_pressure.rs`             | Clip-pressure EWMA integration (§ALGO S-6.4)                                |
 | `tests/coverage_matrix.rs`           | Six attack modalities from the coverage matrix (§ALGO S-17.6)               |
@@ -202,7 +202,7 @@ Each raw score is transformed into a z-score via:
 
 $$z = \frac{s - \bar{s}}{\sqrt{\bar{v}} + \varepsilon}$$
 
-where $\bar{s}$ and $\bar{v}$ are the fast EWMA mean and variance (§ALGO S-7.1.2). The variance floor is $10^{-4}$.
+where $\bar{s}$ and $\bar{v}$ are the fast EWMA mean and variance (§ALGO S-6.1.2). The variance floor is $10^{-4}$.
 
 ---
 

@@ -723,7 +723,7 @@ Methods:
 3. Take top-K (the competitive targets $\mathcal{T}$).
 4. Close under G-tree ancestry to form $\mathcal{I}$.
 
-The root is always an ancestor, never competitive (§ALGO S-4.7).
+The root is always an ancestor, never competitive (§ALGO S-8.2).
 
 ### §5.5 `CentredBitSource` and `CentredBits` · `sec:sentinel:api-centred-bit-types`
 

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Torrust project contributors
 
 //! The ancestor chain — what the models above a cell are for
-//! (§ALGO S-4.4–4.9).
+//! (§ALGO S-16).
 //!
 //! Selecting a cell for analysis is never enough on its own. Every
 //! competitively chosen cell is closed under G-tree ancestry, so the sentinel

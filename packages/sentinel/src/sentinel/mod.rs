@@ -20,7 +20,7 @@
 //! Warming cells hold **investment slots** in $\mathcal{I}$ but not
 //! **production slots** in $\mathcal{A}$ (ADR-S-019).
 //! Coordination contexts are warmed via Gamma-sampled synthetic
-//! score vectors (§ALGO S-9.8). No manual injection API exists — the
+//! score vectors (§ALGO S-11.7.2). No manual injection API exists — the
 //! sentinel owns the injection lifecycle entirely (ADR-S-007).
 //!
 //! # Quick start
@@ -188,7 +188,7 @@ where
     analysis_set: AnalysisSet<C, V>,
 
     /// The root tracker's `GNodeId`. Cached for fast access.
-    /// Permanent — never destroyed (§ALGO S-4.7).
+    /// Permanent — never destroyed (§ALGO S-8.4).
     root_gnode: GNodeId,
 
     /// Per-G-node coordination contexts (§ALGO S-9.1).
@@ -306,7 +306,7 @@ where
             .noise_seed
             .map_or_else(|| SmallRng::from_rng(&mut rand::rng()), SmallRng::seed_from_u64);
 
-        // ── Root tracker (permanent, §ALGO S-4.7) ─────────
+        // ── Root tracker (permanent, §ALGO S-8.4) ─────────
         let root_gnode = graph.g_root();
         let mut root_cell = CellState {
             tracker: SubspaceTracker::new(N as usize, &config, config.cusum_slow_decay),
@@ -377,7 +377,7 @@ where
     ///
     /// Each value is fed to the G-V Graph, then routed to every
     /// analysis cell whose interval contains it. Multi-scale delivery
-    /// ensures ancestor cells also receive the observation (§ALGO S-4.4).
+    /// ensures ancestor cells also receive the observation (§ALGO S-9.3).
     ///
     /// An empty input slice produces an empty report.
     ///
@@ -1015,7 +1015,7 @@ where
     ///
     /// Recomputes the analysis set from the V-Tree, creates trackers
     /// for new cells, and destroys trackers for exited cells. The
-    /// root tracker is never destroyed (§ALGO S-4.7).
+    /// root tracker is never destroyed (§ALGO S-8.5).
     ///
     /// New cells are enqueued into the staging area rather than being
     /// warmed inline (Step 2, §ALGO S-11.6.8). A synchronous drain loop
@@ -1031,7 +1031,7 @@ where
         let old_gnodes: BTreeSet<GNodeId> = self.cells.keys().copied().collect();
         let new_gnodes: BTreeSet<GNodeId> = new_set.full().iter().map(|e| e.gnode).collect();
 
-        // Destroy exited cells (except root — §ALGO S-4.7).
+        // Destroy exited cells (except root — §ALGO S-8.5).
         for &gone in old_gnodes.difference(&new_gnodes) {
             if gone != self.root_gnode {
                 self.cells.remove(&gone);
@@ -1217,7 +1217,7 @@ where
                 });
             }
             // Cells with no observations in this batch are omitted
-            // from the report (§ALGO S-4.5).
+            // from the report (§ALGO S-8.8).
         }
 
         reports
@@ -1433,7 +1433,7 @@ where
         let lam = self.config.forgetting_factor;
         let alpha = 1.0 - lam;
 
-        // §ALGO S-9.8: Collect baselines before borrowing self.coordination
+        // §ALGO S-11.7.2: Collect baselines before borrowing self.coordination
         // to avoid simultaneous &mut borrows.
         let cell_baselines: Vec<(GNodeId, AxisBaselines)> = if self.coordination.contains_key(&gnode) {
             Vec::new()
@@ -1450,7 +1450,7 @@ where
             warm: false,
         });
 
-        // §ALGO S-9.8: Warm new contexts when not in noise phase.
+        // §ALGO S-11.7: Warm new contexts when not in noise phase.
         let coord_rounds = self.config.noise_schedule.rounds_for_depth(depth as usize);
         if !cell_baselines.is_empty() && !is_noise && coord_rounds > 0 {
             warm_coordination_context(
@@ -1755,10 +1755,10 @@ fn inject_noise_into_cell<C: Coordinate>(cell: &mut CellState<C>, rounds: usize,
     cell.tracker.reset_clip_pressure();
 }
 
-// ─── Coordination warming (§ALGO S-9.8) ──────────────────────
+// ─── Coordination warming (§ALGO S-11.7) ──────────────────────
 
 /// Snapshot of per-axis baseline statistics for synthetic score
-/// generation (§ALGO S-9.8).
+/// generation (§ALGO S-11.7.2).
 pub struct AxisBaselines {
     pub novelty_mean: f64,
     pub novelty_var: f64,
@@ -1774,7 +1774,7 @@ pub struct AxisBaselines {
 ///
 /// Uses Gamma(α, β) where α = mean²/variance, β = mean/variance.
 /// Falls back to axis-specific defaults when baselines are cold
-/// (§ALGO S-9.8).
+/// (§ALGO S-11.7.2).
 fn sample_synthetic_score(baselines: &AxisBaselines, rng: &mut SmallRng) -> [f64; 4] {
     [
         gamma_sample(baselines.novelty_mean, baselines.novelty_var, 0.25, 0.01, rng),
@@ -1804,7 +1804,7 @@ fn gamma_sample(mean: f64, var: f64, default_mean: f64, default_var: f64, rng: &
 }
 
 /// Warm a newly activated coordination context with synthetic
-/// score vectors sampled from cell baselines (§ALGO S-9.8).
+/// score vectors sampled from cell baselines (§ALGO S-11.7.2).
 ///
 /// Uses Gamma sampling to match cell baseline moments while
 /// respecting axis non-negativity.

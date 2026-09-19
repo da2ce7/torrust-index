@@ -562,7 +562,7 @@ fn only_competitive_cells_contribute() {
 
     let report = s.ingest(&[cell_values(0xF, 4), cell_values(0x1, 4)].concat());
 
-    // Root is never competitive (§ALGO S-4.7). coordination
+    // Root is never competitive (§ALGO S-8.2). coordination
     // cells_reporting should only count competitive cells.
     let competitive_count = report
         .cell_reports

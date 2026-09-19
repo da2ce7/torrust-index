@@ -397,7 +397,7 @@ fn coordination_contexts_warmed_on_activation() {
     let ch = s.health().coordination_health;
     if ch.active_contexts > 0 {
         // Coordination contexts should have been warmed on activation
-        // via Gamma-sampled synthetic noise (§ALGO S-9.8).
+        // via Gamma-sampled synthetic noise (§ALGO S-11.7).
         assert!(
             ch.maturity_distribution.cold_trackers == 0,
             "all active coordination contexts should be warmed, found {} cold",

@@ -54,7 +54,7 @@
 //! # §-references
 //!
 //! - §ALGO S-4.2 Phase 3 — Latent distribution cold→warm
-//! - §ALGO S-7.1.1 — EWMA outlier filter
+//! - §ALGO S-6.1.1 — EWMA outlier filter
 //! - §ALGO S-11.5 — Maturity tracking
 //! - ADR-S-013 — Warm-up convergence benchmark
 //! - ADR-S-014 — Subspace tracker visibility

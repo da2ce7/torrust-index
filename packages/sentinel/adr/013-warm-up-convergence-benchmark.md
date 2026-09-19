@@ -1,8 +1,8 @@
 # ADR-S-013: Warm-Up Convergence Benchmark · `rec:sentinel:benchmark-convergence-and-fix-three-root-causes`
 
-**Status:** Accepted (core fixes implemented; config and spec updates remain) **Date:** 2026-03-10 **Spec:** §ALGO S-11.5 (maturity tracking), §ALGO S-11.6 (system-level warm-up), §ALGO S-7.1.1 (EWMA baseline tracking and outlier clipping), §ALGO S-5.2 Phase 3 (latent distribution) **Relates to:** [ADR-S-007](007-automatic-noise-injection.md) (automatic noise injection), [ADR-S-012](012-test-duration-budget.md) (test duration budget), [ADR-S-001](001-measures-not-opinions.md) (measures not opinions), [ADR-S-014](014-subspace-tracker-visibility.md) (subspace tracker visibility), [ADR-S-015](015-cell-creation-performance.md) (cell creation performance), [ADR-S-016](016-brand-incremental-svd.md) (Brand's incremental SVD)
+**Status:** Accepted (core fixes implemented; config and spec updates remain) **Date:** 2026-03-10 **Spec:** §ALGO S-11.5 (maturity tracking), §ALGO S-11.6 (system-level warm-up), §ALGO S-6.1.1 (EWMA baseline tracking and outlier clipping), §ALGO S-5.2 Phase 3 (latent distribution) **Relates to:** [ADR-S-007](007-automatic-noise-injection.md) (automatic noise injection), [ADR-S-012](012-test-duration-budget.md) (test duration budget), [ADR-S-001](001-measures-not-opinions.md) (measures not opinions), [ADR-S-014](014-subspace-tracker-visibility.md) (subspace tracker visibility), [ADR-S-015](015-cell-creation-performance.md) (cell creation performance), [ADR-S-016](016-brand-incremental-svd.md) (Brand's incremental SVD)
 
-**Findings:** Four rounds of investigation (preliminary → secondary → code audit → tertiary synthesis) plus post-fix quaternary validation and recommendations.  All six findings documents have been retired; their essential content is captured in this ADR and in the spec updates to §ALGO S-5.2, §ALGO S-7.1.1, §ALGO S-7.4, §ALGO S-11.5, and §ALGO S-11.6.
+**Findings:** Four rounds of investigation (preliminary → secondary → code audit → tertiary synthesis) plus post-fix quaternary validation and recommendations.  All six findings documents have been retired; their essential content is captured in this ADR and in the spec updates to §ALGO S-5.2, §ALGO S-6.1.1, §ALGO S-7.4, §ALGO S-11.5, and §ALGO S-11.6.
 
 ## Context · `sec:sentinel:warmbench-context`
 
@@ -47,7 +47,7 @@ Additionally, the **convergence metric itself was broken**. The original `find_s
 
 ### No bug — a design trap · `sec:sentinel:warmbench-design-trap`
 
-A line-by-line code audit confirmed that the implementation faithfully follows §ALGO S-7.1.1.  The slow convergence was a *design consequence* of applying attack-resistant outlier clipping from round 1 using nascent statistics, not a coding error.
+A line-by-line code audit confirmed that the implementation faithfully follows §ALGO S-6.1.1.  The slow convergence was a *design consequence* of applying attack-resistant outlier clipping from round 1 using nascent statistics, not a coding error.
 
 ## Decision · `sec:sentinel:warmbench-decision`
 
@@ -55,7 +55,7 @@ A line-by-line code audit confirmed that the implementation faithfully follows �
 
 ### Implemented fixes · `sec:sentinel:warmbench-implemented-fixes`
 
-#### Fix 1: Graduated clip-exemption (§ALGO S-7.1.1) · `sec:sentinel:warmbench-graduated-clip-exemption`
+#### Fix 1: Graduated clip-exemption (§ALGO S-6.1.1) · `sec:sentinel:warmbench-graduated-clip-exemption`
 
 The effective clip width now scales with noise influence $\eta$:
 
@@ -240,7 +240,7 @@ The path from hypothesis to validated fixes spanned four rounds:
 
 **Round 2 (Secondary):** Discovered the convergence metric was fundamentally broken (round-300 reference was 56% wrong for surprise; baselines wander 15.5% CV at true steady state).  The 5% tolerance criterion was unfalsifiable for 3 of 4 axes. Incorrectly attributed 89% of the gap to score-level variance (conflated the measurement problem with the convergence problem).
 
-**Round 3 (Code Audit):** Line-by-line audit confirmed **no code bug** — the implementation faithfully follows §ALGO S-7.1.1. Discovered the **clipping-ceiling positive feedback loop**: the true dominant cause (~85% of the gap, adding 800+ rounds to surprise convergence).  Cold→warm variance ≈ $10^{-4}$ → ceiling ≈ 0.28 → perpetual clipping → slow mean/variance drift.
+**Round 3 (Code Audit):** Line-by-line audit confirmed **no code bug** — the implementation faithfully follows §ALGO S-6.1.1. Discovered the **clipping-ceiling positive feedback loop**: the true dominant cause (~85% of the gap, adding 800+ rounds to surprise convergence).  Cold→warm variance ≈ $10^{-4}$ → ceiling ≈ 0.28 → perpetual clipping → slow mean/variance drift.
 
 **Round 4 (Quaternary — Post-fix Validation):** Implemented both fixes.  Surprise convergence improved from 1000+ to 65 rounds. Confirmed the CUSUM fast-slow gap as severe (198 false drift). Discovered coherence as the true production bottleneck (406 rounds at $b = 4$) and displacement bimodality across seeds.
 
@@ -272,7 +272,7 @@ This investigation triggered three further ADRs:
 |------|----------|--------|
 | Increase `noise_rounds` default (50 → ≥400 at $\lambda = 0.99$) | **HIGH** | TODO |
 | Promote windowed-mean convergence metric to production test suite | Medium | Validated in quaternary tests |
-| ~~Update §ALGO S-7.1.1 with graduated clip-exemption formula~~ | ~~Medium~~ | Done (2026-03-11) |
+| ~~Update §ALGO S-6.1.1 with graduated clip-exemption formula~~ | ~~Medium~~ | Done (2026-03-11) |
 | ~~Update §ALGO S-5.2 Phase 3 with cold→warm initialisation~~ | ~~Medium~~ | Done (2026-03-11) |
 | ~~Update §ALGO S-7.4 with slow-from-fast CUSUM seeding~~ | ~~Medium~~ | Done (2026-03-11) |
 | ~~Update §ALGO S-11.5–11.6 with empirical convergence data~~ | ~~Medium~~ | Done (2026-03-11) |

@@ -125,7 +125,7 @@ fn root_is_never_competitive() {
     let set = AnalysisSet::recompute(&graph, 100, 6);
     assert!(
         !set.is_competitive(graph.g_root()),
-        "root must never appear in the competitive set (§ALGO S-4.7)",
+        "root must never appear in the competitive set (§ALGO S-8.2)",
     );
 }
 

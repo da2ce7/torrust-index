@@ -132,7 +132,7 @@ impl<C: Coordinate, V: Inspectable> AnalysisSet<C, V> {
 
         // ── Step 3: Take top K ──────────────────────────────────
         //
-        // The root is always an ancestor and never competitive (§ALGO S-4.7),
+        // The root is always an ancestor and never competitive (§ALGO S-8.2),
         // so it is dropped before the cut rather than after it. Dropped
         // afterwards it consumes a slot it can never use: the root's own
         // intensity is what it accumulated before its first split, and the
@@ -188,7 +188,7 @@ impl<C: Coordinate, V: Inspectable> AnalysisSet<C, V> {
             }
         }
 
-        // Ensure the root is always present (§ALGO S-4.7).
+        // Ensure the root is always present (§ALGO S-8.2).
         full_set.entry(g_root).or_insert_with(|| {
             let info = graph.gnode_info(g_root).expect("G-root must be live");
             AnalysisEntry {
