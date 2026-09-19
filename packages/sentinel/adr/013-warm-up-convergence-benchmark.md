@@ -270,7 +270,7 @@ This investigation triggered three further ADRs:
 
 | Item | Priority | Status |
 |------|----------|--------|
-| Increase `noise_rounds` default (50 → ≥400 at $\lambda = 0.99$) | **HIGH** | TODO |
+| ~~Increase `noise_rounds` default (50 → ≥400 at $\lambda = 0.99$)~~ | ~~**HIGH**~~ | Done — `NoiseSchedule::default()` ships a geometric schedule at 450 root rounds, halving per depth to a floor of 50 |
 | Promote windowed-mean convergence metric to production test suite | Medium | Validated in quaternary tests |
 | ~~Update §ALGO S-6.1.1 with graduated clip-exemption formula~~ | ~~Medium~~ | Done (2026-03-11) |
 | ~~Update §ALGO S-4.2 Phase 3 with cold→warm initialisation~~ | ~~Medium~~ | Done (2026-03-11) |
