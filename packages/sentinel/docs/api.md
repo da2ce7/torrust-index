@@ -579,7 +579,9 @@ pub struct SentinelConfig<V: Accumulator> {
 - `noise_schedule`: Depth-tiered warm-up schedule.
 - `background_warming`: When `true`, warm-up runs on a background thread.
 
-Methods: `validate() -> Result<(), ConfigErrors>`, `Default`.
+Methods: `validate() -> Result<(), ConfigErrors>`, `warnings() -> Vec<ConfigWarning>`, `Default`.
+
+`warnings()` reports parameter combinations that validation accepts but that are empirically known to produce poor results; it is read once `validate()` has succeeded and refuses nothing (§7.1).
 
 ### §5.2 `NoiseSchedule` — `Clone` · `sec:sentinel:api-noise-schedule`
 
@@ -796,6 +798,7 @@ These modules implement the internal machinery. Their interfaces may change with
 - `SpectralSentinel::new()` propagates validation errors.
 - Panics for stale handles (documented per-method).
 - `ConfigErrors` is a `Vec<ConfigError>` carrying all validation failures.
+- `SentinelConfig::warnings() -> Vec<ConfigWarning>` — advisory diagnostics, read once `validate()` has succeeded. A warning refuses nothing: the configuration is valid and the engine will run on it.
 
 #### `ConfigError` variants · `sec:sentinel:api-config-error-variants`
 
@@ -830,6 +833,14 @@ These modules implement the internal machinery. Their interfaces may change with
 | `BackgroundWarmingThreadUnavailable` | not a constraint violation: `background_warming` was asked for and the operating system refused the thread. Raised where the thread is asked for, and returned alone rather than alongside the violations above |
 
 The enum is `#[non_exhaustive]`: each engine capability a configuration can ask for is one more way the request can be refused, so a caller matches the variants it has an opinion about and handles the rest through a wildcard arm reporting the `Display` text.
+
+#### `ConfigWarning` variants · `sec:sentinel:api-config-warning-variants`
+
+| Variant                     | Condition reported                                                                                                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NoiseScheduleInsufficient` | the noise schedule's depth-0 root is below the minimum the configured `forgetting_factor` empirically needs (§ALGO S-A.7), so baselines may not have converged by the time real observations arrive and early scores may be unreliable. Carries `root`, `recommended_root` and `lambda`, so a caller can report the gap rather than the bare fact |
+
+Advisory diagnostics are described here, beside the errors, rather than among the configuration fields of §5.1: what a reader needs in order to act on a warning is the contrast with a refusal, not the field it happens to concern. A `ConfigError` refuses the configuration and `SpectralSentinel::new()` returns it; a `ConfigWarning` accepts the configuration and says the results may not be worth reading. The two are also read at one boundary and in one order — `validate()` first, then `warnings()` on success — so a caller writing that code finds both in one place. Unlike `ConfigError` the enum is not `#[non_exhaustive]`, so it can be matched exhaustively; a caller with no opinion about a particular advisory can report its `Display` text and carry on, since no advisory obliges it to do anything.
 
 ### §7.2 Thread Safety · `sec:sentinel:api-thread-safety`
 
