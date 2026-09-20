@@ -392,6 +392,22 @@ where
     ///
     /// Panics if the internal staging mutex is poisoned.
     pub fn ingest(&mut self, values: &[C]) -> BatchReport<C> {
+        // ── Arrival stamp (§ALGO S-14.1) ──────────────────
+        // The batch arrives whole at this call boundary, so this one
+        // instant is the arrival of every observation in it — the
+        // oldest included. It is taken first, ahead of the domain
+        // decision below, because that decision is work this call does
+        // on the batch: stamped after it, the age would leave the
+        // filtering pass out and report a figure short of the
+        // boundary-to-emission interval §ALGO S-14.1.1 promises. A
+        // batch the decision empties returns before the stamp is read,
+        // spending one clock read and reporting no age at all; on
+        // every other path it is read back at emission and reported as
+        // the batch's age. The clock is the sentinel's own monotonic
+        // one and is never compared with anybody else's, which is what
+        // keeps the figure free of skew.
+        let batch_arrival = Instant::now();
+
         // ── The domain decision (§ALGO S-2.1) ───────────
         // Taken once, here, because the three layers below read a value
         // differently and none of them can be the place that decides. The
@@ -418,15 +434,6 @@ where
         if values.is_empty() {
             return self.empty_report();
         }
-
-        // ── Arrival stamp (§ALGO S-14.1) ──────────────────
-        // The batch arrives whole at this call boundary, so this one
-        // instant is the arrival of every observation in it — the
-        // oldest included. It is read back at emission and reported as
-        // the batch's age. The clock is the sentinel's own monotonic
-        // one and is never compared with anybody else's, which is what
-        // keeps the figure free of skew.
-        let batch_arrival = Instant::now();
 
         // ── Observation algorithm ──────────────────────
         // Steps 0–6 correspond to §ALGO S-9.1.
