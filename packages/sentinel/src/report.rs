@@ -19,7 +19,7 @@ use torrust_mudlark::GNodeId;
 /// Complete statistical output from one
 /// [`ingest`](crate::SpectralSentinel::ingest) call.
 ///
-/// Matches the structure defined in algorithm.md Chapter 14.
+/// Matches the structure defined in §ALGO S-14.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(bound = "C: serde::Serialize + serde::de::DeserializeOwned"))]
@@ -283,13 +283,13 @@ pub struct TrackerReport {
 /// All four axes share the same polarity: **higher values indicate
 /// greater anomalous departure**. This ensures uniform z-score
 /// interpretation and EWMA outlier-filter robustness (see
-/// `docs/algorithm.md`, Appendix A).
+/// §ALGO S-5.1).
 ///
 /// **Why not projection energy / "normality"?** Under the sentinel's
 /// centred binary encoding, every observation has the same L2 norm
 /// (`d / 4`). Projection energy is therefore a perfect affine function
 /// of residual energy — it carries zero independent information.
-/// See `docs/algorithm.md`, Appendix B for the full proof.
+/// See §ALGO S-15.2 for the full proof.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AnomalyScores {

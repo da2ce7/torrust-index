@@ -566,7 +566,7 @@ Do the same for the early-return zero-trackers branch.
 
 ### Step 7.5 — Coordination `health()` too · `sec:sentinel:clipplan-step-7-5-coordination-health`
 
-If the coordination tier's `HealthReport` / `CoordinationHealth` should also report clip-pressure, repeat the same pattern.  Check whether §14.11 mandates it — if not, skip for now.
+If the coordination tier's `HealthReport` / `CoordinationHealth` should also report clip-pressure, repeat the same pattern.  Check whether §ALGO S-14.11 mandates it — if not, skip for now.
 
 ### Checkpoint · `sec:sentinel:clipplan-phase7-checkpoint`
 
@@ -660,7 +660,7 @@ That's 7 depending on how you count.  With `clip_pressure` = **8**. 4 axes × 8 
 
 ### Step 9.2 — Update any doc comments · `sec:sentinel:clipplan-step-9-2-doc-comments`
 
-If `SubspaceTracker` or `AxisBaseline` has doc comments referencing memory accounting, update them.  Check ``docs/algorithm.md`` §4.3 if it's in-repo.
+If `SubspaceTracker` or `AxisBaseline` has doc comments referencing memory accounting, update them.  Check §ALGO S-4.3 if it's in-repo.
 
 ### No code change needed here — just verification. · `sec:sentinel:clipplan-phase9-no-code-change`
 

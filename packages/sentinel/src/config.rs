@@ -916,7 +916,7 @@ impl<V: Inspectable> SentinelConfig<V> {
         let mut warnings = Vec::new();
 
         // §ALGO S-A.7: cross-check noise schedule root vs forgetting factor.
-        // Thresholds derived from empirical convergence data (Appendix A).
+        // Thresholds derived from empirical convergence data (§ALGO S-Appendix A).
         let recommended_root = if self.forgetting_factor >= 0.99 {
             450
         } else if self.forgetting_factor >= 0.95 {

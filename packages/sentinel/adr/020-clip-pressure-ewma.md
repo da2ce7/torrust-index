@@ -31,7 +31,7 @@ The spec also consolidates clipping into a **single shared filter** computed aga
 
 ### What already works · `sec:sentinel:clippressure-already-works`
 
-- **Pre-clip raw batch mean for CUSUM**: `update_axis()` computes the raw `mean` from all scores and passes it to `cusum.update()` as `batch_mean` — this is already the pre-clip mean required by §6.1.1 step 5.
+- **Pre-clip raw batch mean for CUSUM**: `update_axis()` computes the raw `mean` from all scores and passes it to `cusum.update()` as `batch_mean` — this is already the pre-clip mean required by §ALGO S-6.1.1 step 5.
 
 - **Formula shape**: The current formula `n + n·η/(1-η+ε)` is algebraically equivalent to `n·(1 + η/(1-η+ε))`, so the multiplicative form in the new spec is the same shape — just with $p$ replacing $\eta$.
 
@@ -53,15 +53,15 @@ The implementation has **11 gaps** between the current code and the amended spec
 
 6. **CUSUM slow EWMA receives pre-filtered samples.** Since clipping is externalised, `CusumAccumulator::update()` must accept pre-filtered samples instead of re-clipping internally.
 
-7. **Report: `ScoreDistribution::clip_pressure`** (§14.4). New `f64` field in `[0, 1]`.
+7. **Report: `ScoreDistribution::clip_pressure`** (§ALGO S-14.4). New `f64` field in `[0, 1]`.
 
-8. **Report: `HealthReport` clip-pressure distribution** (§14.11). New summary field (min/max/mean across active trackers).
+8. **Report: `HealthReport` clip-pressure distribution** (§ALGO S-14.11). New summary field (min/max/mean across active trackers).
 
 9. **Coherence rank-drop reset.** `adapt_rank()` must also zero the coherence axis's $\bar{\rho}$.
 
-10. **Warm-up completion reset** (§11.4). When noise influence crosses the warm-up threshold, all four axes' $\bar{\rho}$ must be zeroed.
+10. **Warm-up completion reset** (§ALGO S-11.4). When noise influence crosses the warm-up threshold, all four axes' $\bar{\rho}$ must be zeroed.
 
-11. **Baseline memory accounting.** Per-axis baseline size grows from 7 to 8 floats ($4 \times 8 = 32$ total), matching §4.3.
+11. **Baseline memory accounting.** Per-axis baseline size grows from 7 to 8 floats ($4 \times 8 = 32$ total), matching §ALGO S-4.3.
 
 ## Decision · `sec:sentinel:clippressure-decision`
 
@@ -175,7 +175,7 @@ with `min`, `max`, and `mean` across active tracker axes.
 
 ### 9. Accepted deviations · `sec:sentinel:clippressure-accepted-deviations`
 
-- **Cold-path bypass is preserved.** When an EWMA is cold (first update), all values are accepted even under the new shared filter.  This matches the spec's "skip entirely on first update" (§6.1.1 Design Note 1).
+- **Cold-path bypass is preserved.** When an EWMA is cold (first update), all values are accepted even under the new shared filter.  This matches the spec's "skip entirely on first update" (§ALGO S-6.1.1 Design Note 1).
 
 - **Formula equivalence.** The implementation may use either the additive form `n + n·p/(1-p+ε)` or the multiplicative form `n·(1 + p/(1-p+ε))` — they are algebraically identical.  The choice is left to readability preference.
 

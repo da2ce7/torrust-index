@@ -70,7 +70,7 @@ let mut sentinel = Sentinel128::new(config).unwrap();
 assert_eq!(sentinel.lifetime_observations(), 0);
 ```
 
-The default configuration is tuned for longer-lived streams. The compact noise schedule above keeps examples and doctests fast; production callers should choose warm-up settings from the recommendations in [docs/algorithm.md](docs/algorithm.md) Appendix A.
+The default configuration is tuned for longer-lived streams. The compact noise schedule above keeps examples and doctests fast; production callers should choose warm-up settings from the recommendations in §ALGO S-Appendix A.
 
 ### Feed data — spatial structure adapts · `sec:sentinel:readme-feed-data-spatial-structure-adapts`
 

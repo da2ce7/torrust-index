@@ -169,13 +169,13 @@ All collection types use `BTreeMap` for deterministic iteration order ([ADR-S-00
 
 `SubspaceTracker::observe()` implements the five-phase core loop (§ALGO S-4.2) with a **score-before-evolve** invariant: scores are computed against the current basis, then the basis is updated.
 
-| Phase | Operation                                                                                                                                               | §ALGO S-     |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| 1     | **Project** — $Z = X U$, $\hat{X} = Z U^\top$, $R = X - \hat{X}$                                                                                        | §4.2 Phase 1 |
-| 2     | **Evolve subspace** — combined matrix $M$, thin SVD, update $U$, $\sigma$                                                                               | §4.2 Phase 2 |
-| 3     | **Evolve latent distribution** — EWMA-mean-centred update of $\mu^{(z)}$, $\nu^{(z)}$, $\Gamma$ ([ADR-S-021](../adr/021-ewma-mean-centred-variance.md)) | §4.2 Phase 3 |
-| 4     | **Score** — compute all four axis scores, update EWMA baselines, CUSUM                                                                                  | §4.2 Phase 4 |
-| 5     | **Adapt rank** — energy-threshold selection with +1 buffer, ±1 oscillation guard                                                                        | §4.2 Phase 5 |
+| Phase | Operation                                                                                                                                               | Specification       |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| 1     | **Project** — $Z = X U$, $\hat{X} = Z U^\top$, $R = X - \hat{X}$                                                                                        | §ALGO S-4.2 Phase 1 |
+| 2     | **Evolve subspace** — combined matrix $M$, thin SVD, update $U$, $\sigma$                                                                               | §ALGO S-4.2 Phase 2 |
+| 3     | **Evolve latent distribution** — EWMA-mean-centred update of $\mu^{(z)}$, $\nu^{(z)}$, $\Gamma$ ([ADR-S-021](../adr/021-ewma-mean-centred-variance.md)) | §ALGO S-4.2 Phase 3 |
+| 4     | **Score** — compute all four axis scores, update EWMA baselines, CUSUM                                                                                  | §ALGO S-4.2 Phase 4 |
+| 5     | **Adapt rank** — energy-threshold selection with +1 buffer, ±1 oscillation guard                                                                        | §ALGO S-4.2 Phase 5 |
 
 Safety guards:
 
@@ -191,12 +191,12 @@ Safety guards:
 
 All four axes satisfy the polarity invariant: **higher = more anomalous** (§ALGO S-5.1).
 
-| Axis         | Formula                              | Bounds        | §ALGO S- |
-| ------------ | ------------------------------------ | ------------- | -------- |
-| Novelty      | $\|r\|^2 / (d - k)$                  | $[0, \infty)$ | §6.1     |
-| Displacement | $\|z\|^2 / (k + \|z\|^2)$            | $[0, 1)$      | §6.2     |
-| Surprise     | diagonal Mahalanobis $/\, k$         | $[0, \infty)$ | §6.3     |
-| Coherence    | pairwise cross-correlation deviation | $[0, \infty)$ | §6.4     |
+| Axis         | Formula                              | Bounds        | Specification |
+| ------------ | ------------------------------------ | ------------- | ------------- |
+| Novelty      | $\|r\|^2 / (d - k)$                  | $[0, \infty)$ | §ALGO S-5.2   |
+| Displacement | $\|z\|^2 / (k + \|z\|^2)$            | $[0, 1)$      | §ALGO S-5.3   |
+| Surprise     | diagonal Mahalanobis $/\, k$         | $[0, \infty)$ | §ALGO S-5.4   |
+| Coherence    | pairwise cross-correlation deviation | $[0, \infty)$ | §ALGO S-5.5   |
 
 Each raw score is transformed into a z-score via:
 

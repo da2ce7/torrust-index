@@ -32,7 +32,7 @@ Reference: §ALGO S-1.3.
 
 ### §2 Three-Layer Architecture · `sec:sentinel:apiplan-three-layer-architecture`
 
-Reproduce the ASCII diagram and table from algorithm.md §1.4–§1.5:
+Reproduce the ASCII diagram and table from §§ALGO S-1.4–1.5:
 
 ```
 Layer 1: Spatial Index (mudlark GvGraph)
@@ -251,7 +251,7 @@ All Surface 1 types carry conditional serde derives. `SentinelConfig` and `Noise
 
 1. **Module visibility:** Should `analysis_set` types be in §4 (report-like) or §5 (operational)? Currently proposed for §5 since they're mutable and tied to sentinel lifecycle.
 
-2. **Coordination tier depth:** How much detail on `CoordinationReport` and the 4D meta-axes? algorithm.md §9 has the full story.
+2. **Coordination tier depth:** How much detail on `CoordinationReport` and the 4D meta-axes? §ALGO S-7 has the full story.
 
 3. **Tracker internals exposure:** The doc currently marks `SubspaceTracker` as internal. If any methods become `pub`, they'd move to §5.
 
