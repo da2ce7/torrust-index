@@ -106,10 +106,13 @@ pub struct CellState<C: Coordinate> {
     /// the backing G-node bounds so the routing prefix is constant.
     pub start: C,
 
-    /// Upper bound of the dyadic interval, exclusive everywhere except at the
-    /// top of the domain: the cell whose bound is the domain maximum owns that
-    /// maximum, because a coordinate width filling the coordinate type leaves
-    /// no value above it to be excluded.
+    /// Upper bound of the scoring interval, exclusive everywhere except at the
+    /// top of the domain: the topmost cell keeps `end` inside its interval
+    /// when `end` is the domain's final value. A coordinate type that cannot
+    /// represent `2^N` at its full width leaves the domain with such a final
+    /// value, its domain maximum standing in for the absent bound; one that
+    /// can represent `2^N` has no final value and excludes the bound at every
+    /// width.
     pub end: C,
 
     /// Whether this cell is competitively selected (vs ancestor-only).

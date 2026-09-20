@@ -107,9 +107,11 @@ pub struct CellReport<C: Copy + Debug> {
     pub start: C,
 
     /// Upper bound of the dyadic interval, exclusive everywhere except at the
-    /// top of the domain: the cell whose bound is the domain maximum owns that
-    /// maximum, because a coordinate width filling the coordinate type leaves
-    /// no value above it to be excluded.
+    /// top of the domain: `end` belongs to this cell exactly when it is the
+    /// last value of the domain, which is the case for a coordinate type that
+    /// cannot represent `2^N` at its full width and so names its domain
+    /// maximum as the bound. A type that can represent `2^N` keeps
+    /// `[start, end)` half-open at every width.
     pub end: C,
 
     /// G-tree depth of this cell.
@@ -174,11 +176,13 @@ pub struct CoordinationReport<C: Copy + Debug> {
     pub start: C,
 
     /// Upper bound of the coordination context's dyadic interval, exclusive
-    /// everywhere except at the top of the domain: a context whose bound is the
-    /// domain maximum owns that maximum, because a coordinate width filling the
-    /// coordinate type leaves no value above it to be excluded. The root
-    /// context covers the full-width interval, so this is the ordinary case
-    /// rather than a corner of it.
+    /// everywhere except at the top of the domain: a context bounded by the
+    /// domain's last value covers that value. The domain has a last value
+    /// only where the coordinate type cannot represent `2^N` at its full
+    /// width, so that its domain maximum names the top of the domain rather
+    /// than the first value above it; where `2^N` is representable the bound
+    /// stays exclusive at every width. The root context covers the full-width
+    /// interval, so this is the ordinary case rather than a corner of it.
     pub end: C,
 
     /// G-tree depth of the coordination context.
@@ -666,9 +670,12 @@ pub struct CellInspection<C: Copy + Debug> {
     pub start: C,
 
     /// Upper bound of the dyadic interval, exclusive everywhere except at the
-    /// top of the domain: the cell whose bound is the domain maximum owns that
-    /// maximum, because a coordinate width filling the coordinate type leaves
-    /// no value above it to be excluded.
+    /// top of the domain: the inspected cell contains `end` only where `end`
+    /// is the domain's topmost value. That happens when the coordinate type
+    /// has no representation for `2^N` at its full width, leaving its domain
+    /// maximum to serve as the bound; wherever `2^N` is representable — every
+    /// narrower width, and a type that reaches it at the full width — the
+    /// bound is excluded as usual.
     pub end: C,
 
     /// G-tree depth of this cell.
@@ -856,7 +863,7 @@ pub struct MemberScore<C: Copy + Debug> {
     /// Lower bound of the scored cell's dyadic interval (inclusive).
     pub cell_start: C,
 
-    /// Upper bound of the scored cell's dyadic interval, exclusive everywhere except at the top of the domain: the cell whose bound is the domain maximum owns that maximum, because a coordinate width filling the coordinate type leaves no value above it to be excluded.
+    /// Upper bound of the scored cell's dyadic interval, exclusive everywhere except at the top of the domain: the scored cell holds `cell_end` when that value is the domain's last, which is what a coordinate type unable to represent `2^N` at its full width leaves behind when its domain maximum takes the bound's place; a type that represents `2^N` excludes the bound at every width.
     pub cell_end: C,
 
     /// G-tree depth of the scored cell.

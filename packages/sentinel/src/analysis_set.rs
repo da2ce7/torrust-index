@@ -43,9 +43,12 @@ pub struct AnalysisEntry<C: Coordinate, V: Accumulator> {
     /// Lower bound of the dyadic interval (inclusive).
     pub start: C,
     /// Upper bound of the dyadic interval, exclusive everywhere except at the
-    /// top of the domain: the entry whose bound is the domain maximum owns that
-    /// maximum, because a coordinate width filling the coordinate type leaves
-    /// no value above it to be excluded.
+    /// top of the domain: an entry bounded by the domain's last value owns
+    /// that value instead of excluding it. The domain has a last value only
+    /// where the coordinate type cannot represent `2^N` at its full width and
+    /// its domain maximum stands in for the bound that does not exist; where
+    /// `2^N` is representable the bound stays exclusive at every width, the
+    /// full one included.
     pub end: C,
     /// Whether this entry is competitively selected (vs ancestor-only).
     pub is_competitive: bool,

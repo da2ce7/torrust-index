@@ -185,7 +185,7 @@ pub struct CellReport<C: Copy + Debug> {
 | Field               | Content                                              |
 | ------------------- | ---------------------------------------------------- |
 | `gnode_id`          | Arena handle of the backing G-node                   |
-| `start`, `end`      | Dyadic interval `[start, end)`, except at the top of the domain: the cell whose bound is the domain maximum owns that maximum, because a coordinate width filling the coordinate type leaves no value above it to be excluded |
+| `start`, `end`      | Dyadic interval `[start, end)`; `end` belongs to the cell only when it is the domain's last value, which is the case for a coordinate type that cannot represent `2^N` at its full width and so names its domain maximum as the bound. A type that can represent `2^N` excludes `end` at every width |
 | `depth`             | G-tree depth of this cell                            |
 | `analysis_width`    | Suffix width: `N - depth`                            |
 | `is_competitive`    | `true` if competitively selected                     |
