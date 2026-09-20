@@ -22,7 +22,7 @@ This crate follows [Semantic Versioning](https://semver.org/). The public API su
 
 Internal machinery (`pub(crate)` modules, hidden test affordances, EWMA state, tracker internals, staging, and SVD plumbing) is not part of the public API and may change in any release.
 
-**MSRV:** 1.89 (workspace setting under ADR-T-011)
+**MSRV:** 1.90 — inherited from the workspace `rust-version` under ADR-T-011 and tested in CI.
 
 ## Installation · `sec:sentinel:readme-installation`
 
