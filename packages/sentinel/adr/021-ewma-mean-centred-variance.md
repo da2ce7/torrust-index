@@ -173,7 +173,7 @@ Behavioural effects for hosts operating at small batch sizes:
 
 - **$b = 1$:** Surprise scores drop from potentially $O(10^5)$ to $O(1)$.  Any confidence quality factor derived from surprise will be dramatically more stable during warm-up and during production when the distribution is well-behaved.
 
-- **Confidence convergence:** Faster.  The $4×$ surprise inflation at $b = 1$ under the old formula delayed baseline settling.  The new formula's self-consistency property means surprise starts near $1.0$ immediately.
+- **Confidence convergence:** Faster.  At $b = 1$ the old formula inflated surprise by no fixed factor at all: the variance collapsed every batch and the EWMA decayed toward $\varepsilon$, so per-dimension surprise reached $O(10^5)$ and baseline settling was delayed for as long as that erosion ran.  The bounded factors the bias table derives belong to the larger batches — $2\times$ at $b = 2$, $33\%$ at $b = 4$.  The new formula's self-consistency property means surprise starts near $1.0$ immediately.
 
 - **CUSUM sensitivity:** Unchanged in steady state (the CUSUM reference tracks the same signal).  During transitions, surprise CUSUM drift is shorter-lived (the $\nu$ co-adaptation described in §ALGO S-4.2 dampens sustained elevation).
 
