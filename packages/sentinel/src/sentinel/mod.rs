@@ -395,16 +395,20 @@ where
         // ── The domain decision (§ALGO S-2.1) ───────────
         // Taken once, here, because the three layers below read a value
         // differently and none of them can be the place that decides. The
-        // spatial layer routes a coordinate at or above the domain's
-        // exclusive bound rightward at every level and accumulates it in the
-        // topmost terminal, whose interval does not contain it; the encoder
-        // reads the low N bits, so it would present such a value as the
-        // in-domain value it is congruent to (§ALGO S-2.3); and the interval
-        // scan in `route_and_score` matches no cell at all, not even the root,
-        // so no tracker is shown it. Whichever layer were left to its own
-        // reading, the counts would part: the lifetime total would record an
-        // arrival that the trackers never saw, which is the divergence the
-        // mandatory delivery of §ALGO S-9.3 exists to rule out.
+        // spatial layer routes by comparison against interval midpoints, so a
+        // coordinate at or above the domain's exclusive bound goes rightward
+        // at every level and accumulates in the topmost terminal, one below
+        // the origin goes leftward at every level and accumulates in the
+        // bottom-most, and one that compares false against every midpoint, as
+        // a NaN does, accumulates in the topmost with the first; no terminal's
+        // interval contains any of them. The encoder reads the low N bits, so
+        // it would present such a value as the in-domain value it is congruent
+        // to (§ALGO S-2.3). The interval scan in `route_and_score`, meanwhile,
+        // matches no cell at all, not even the root, so no tracker is shown
+        // it. Whichever layer were left to its own reading, the counts would
+        // part: the lifetime total would record an arrival that the trackers
+        // never saw, which is the divergence the mandatory delivery of
+        // §ALGO S-9.3 exists to rule out.
         let retained = Self::retain_in_domain(values);
         let values: &[C] = retained.as_deref().unwrap_or(values);
 
@@ -529,22 +533,53 @@ where
 
     /// Whether `value` lies in the observation domain `[0, 2^N)` (§ALGO S-2.1).
     ///
-    /// The bound is exclusive, with the one exception the partition already
-    /// makes for itself: when the coordinate width fills the coordinate type
-    /// there is no value above the maximum to exclude, so every value the type
-    /// can hold is in the domain and the topmost interval owns its upper bound
-    /// (the same reading `route_and_score` takes). At a narrower width the
-    /// bound is a representable value outside the domain and stays exclusive.
+    /// Membership is decided by comparison against the domain's own bounds and
+    /// never inferred from the coordinate width. [`Coordinate::BITS`] is
+    /// documented as the width `N` is validated against; it promises nothing
+    /// about which values the type can hold. The coordinates this crate
+    /// implements the bridge for are unsigned, so for them a full width does
+    /// leave nothing outside the domain — but
+    /// [`CentredBitSource`](crate::CentredBitSource) is public and its set of
+    /// implementations is open, and `Coordinate` is implemented for the floats
+    /// and carries `is_nan`, so a host's own coordinate type may be signed and
+    /// NaN-capable. Reading `N == C::BITS` as "every representable value is in
+    /// the domain" would admit a negative, a NaN or an infinity on such a type,
+    /// and a comparison against the upper bound alone would admit a negative at
+    /// every narrower width as well — which is the one thing this boundary
+    /// exists to refuse.
+    ///
+    /// The comparison is the root cell's own containment test. The root spans
+    /// [`Coordinate::zero`] to `domain_max(N)` and is permanent (§ALGO S-8.4),
+    /// so deciding membership by the test the routing applies is what keeps the
+    /// two layers agreed for every coordinate type: whatever this admits,
+    /// `route_and_score` matches in at least one cell, and the mandatory
+    /// delivery of §ALGO S-9.3 holds however the host spells its coordinates.
+    ///
+    /// The upper bound is exclusive, with the one exception the partition
+    /// already makes for itself: at a width that fills the coordinate type
+    /// there is no value above `domain_max(N)` to serve as an exclusive bound,
+    /// so the cell ending at the top of the domain owns it and this admits it
+    /// (the same reading `route_and_score` takes through `owns_domain_top`).
+    /// The domain's upper bound is whatever that type's `domain_max` names —
+    /// the maximum for the unsigned implementations, `2^BITS` for the floats —
+    /// because the topmost interval is built from the same call. At a narrower
+    /// width the bound is a representable value outside the domain and stays
+    /// exclusive.
+    ///
+    /// A NaN needs no arm of its own: every comparison with a NaN is false, so
+    /// it is neither at nor above the origin and both arms refuse it.
     fn in_domain(value: C) -> bool {
-        N == C::BITS || value < C::domain_max(N)
+        let domain_top = C::domain_max(N);
+        value >= C::zero() && (value < domain_top || (N == C::BITS && value == domain_top))
     }
 
     /// The batch restricted to the domain, or `None` when it is already the
     /// whole batch.
     ///
     /// Returning the borrowed case as `None` keeps the ordinary batch — every
-    /// value in the domain, which is every batch at a width that fills the
-    /// coordinate type — from being copied on the observation path.
+    /// value in the domain, which is every batch of unsigned coordinates at a
+    /// width that fills the coordinate type — from being copied on the
+    /// observation path.
     fn retain_in_domain(values: &[C]) -> Option<Vec<C>> {
         if values.iter().all(|&value| Self::in_domain(value)) {
             return None;

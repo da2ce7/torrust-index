@@ -22,6 +22,8 @@
 //! | [`top_of_domain_coordinate_routes_to_a_cell`] | routing | The topmost coordinate of the domain reaches a tracker rather than falling through every cell. Cell intervals are half-open, which has no upper edge case while the coordinate width is narrower than the coordinate type — the bound is then a representable value outside the domain. At the full width the domain's maximum is the type's maximum, there is no value above it to be excluded, and a half-open reading of the topmost interval therefore excludes a coordinate that is genuinely inside the domain. The spatial layer counts that observation either way, so the two readings would disagree: the accumulated total records an arrival that no tracker was ever shown. |
 //! | [`an_ordinary_coordinate_still_lands_in_one_cell`] | routing | cites (´claim:routing:the-domains-top-coordinate-reaches-a-tracker-rather-than-falling-through-every-cell´) |
 //! | [`values_outside_the_domain_are_counted_nowhere`] | routing | A coordinate the domain cannot name is not an observation of it, and the three layers that would each read it differently are not left to disagree about that. The spatial layer accumulates such a value in the topmost cell, whose interval does not contain it; the encoder reads the low bits of the configured width, so it would hand a tracker the vector of the in-domain value the arrival is congruent to; and the interval scan matches no cell at all, not even the root. Deciding membership once, before any of them, is what keeps the counts one count: the value raises no total, moves no partition and reaches no tracker. |
+//! | [`a_signed_coordinate_outside_the_domain_is_counted_nowhere_at_full_width`] | routing | Domain membership is decided by comparison against the domain's own bounds, so a coordinate type the crate does not ship is held to the same domain as the ones it does. The bridge into centred bits is public and nothing closes the set of its implementations, and the coordinate trait is implemented for the floats as well as the unsigned integers, so a host's coordinates may be signed and NaN-capable. Inferring from the bit width that every representable value is in the domain holds only for the unsigned types: at a width that fills a signed or floating type it would admit a value below the origin, a NaN and an infinity. The comparison is the root cell's own containment test and the root is permanent, so whatever the boundary admits the partition delivers, for any coordinate type a host may bring. |
+//! | [`a_signed_coordinate_below_the_origin_is_counted_nowhere_at_a_narrow_width`] | routing | cites (´claim:routing:domain-membership-is-decided-by-comparison-for-every-coordinate-type´) |
 
 //! Graph routing — how an observed value reaches the cell that will
 //! analyse it.
@@ -52,7 +54,8 @@
 mod common;
 
 use common::{cell_values, test_config};
-use torrust_sentinel::{Sentinel128, SentinelConfig};
+use torrust_mudlark::Coordinate;
+use torrust_sentinel::{CentredBitSource, CentredBits, Sentinel128, SentinelConfig, SpectralSentinel};
 
 // ── Fresh state ─────────────────────────────────────────────
 
@@ -386,12 +389,14 @@ fn an_ordinary_coordinate_still_lands_in_one_cell() {
 /// what keeps the counts one count: the value raises no total, moves no
 /// partition and reaches no tracker.
 ///
-/// The width here is narrower than the coordinate type, which is the only
-/// shape in which a value outside the domain is representable. At the full
-/// width every value the type can hold is inside the domain, and the tests
-/// named `top_of_domain_coordinate_routes_to_a_cell`,
+/// The width here is narrower than the coordinate type, which for an unsigned
+/// coordinate is the only shape in which a value outside the domain is
+/// representable: at the full width every value `u64` can hold is inside the
+/// domain, and the tests named `top_of_domain_coordinate_routes_to_a_cell`,
 /// `an_ordinary_coordinate_still_lands_in_one_cell` and
-/// `lifetime_observations_tracks_total_sum` hold that reading unchanged.
+/// `lifetime_observations_tracks_total_sum` hold that reading unchanged. A
+/// coordinate type that is signed or NaN-capable has values outside the domain
+/// at every width, which is what the two tests at the end of this file cover.
 ///
 /// ´claim:routing:a-coordinate-outside-the-domain-is-counted-in-no-total-and-reaches-no-tracker´
 /// ´test:integration:values-outside-the-domain-are-counted-nowhere´
@@ -484,4 +489,186 @@ fn full_width_u64_cells_keep_distinct_encodings() {
 #[test]
 fn full_width_u128_cells_keep_distinct_encodings() {
     assert_full_width_encodings::<u128, 128>();
+}
+
+// ── A host's own coordinate type ────────────────────────────
+
+/// A coordinate type of the kind a downstream host writes and this crate does
+/// not ship: a newtype over `f64` whose every coordinate method is `f64`'s own.
+///
+/// The bridge into centred bits is public and nothing closes the set of its
+/// implementations, and the coordinate trait is implemented for the floats as
+/// well as for the unsigned integers, so a host's coordinates may be signed and
+/// NaN-capable. Nothing here narrows what such a host may write: each method
+/// forwards to the implementation Mudlark already publishes for `f64`, so the
+/// type claims no behaviour the trait does not already permit, and it carries
+/// `f64`'s refusal of a successor value unchanged rather than inventing one the
+/// float line does not have. A stand-in that quietly behaved better than `f64`
+/// would prove something about itself rather than about what a host may bring.
+///
+/// The conversion into centred bits reads the value's IEEE 754 bit pattern,
+/// which is deterministic and needs no cast. Which bits a host derives from its
+/// coordinates is its own affair, and the choice is not under test here: the
+/// domain decision is taken before the encoder is reached, so no value these
+/// tests expect to be rejected ever arrives at this conversion.
+#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
+struct SignedCoordinate(f64);
+
+impl Coordinate for SignedCoordinate {
+    const BITS: u32 = <f64 as Coordinate>::BITS;
+
+    fn zero() -> Self {
+        Self(<f64 as Coordinate>::zero())
+    }
+
+    fn domain_max(n: u32) -> Self {
+        Self(<f64 as Coordinate>::domain_max(n))
+    }
+
+    fn midpoint(a: Self, b: Self) -> Self {
+        Self(<f64 as Coordinate>::midpoint(a.0, b.0))
+    }
+
+    fn width(start: Self, end: Self) -> Self {
+        Self(<f64 as Coordinate>::width(start.0, end.0))
+    }
+
+    fn is_final(start: Self, end: Self, depth: u32, n: u32) -> bool {
+        <f64 as Coordinate>::is_final(start.0, end.0, depth, n)
+    }
+
+    fn from_u64(v: u64) -> Self {
+        Self(<f64 as Coordinate>::from_u64(v))
+    }
+
+    fn next_value(self) -> Self {
+        Self(<f64 as Coordinate>::next_value(self.0))
+    }
+
+    fn to_f64(self) -> f64 {
+        <f64 as Coordinate>::to_f64(self.0)
+    }
+
+    fn is_nan(self) -> bool {
+        <f64 as Coordinate>::is_nan(self.0)
+    }
+
+    fn total_cmp(&self, other: &Self) -> std::cmp::Ordering {
+        <f64 as Coordinate>::total_cmp(&self.0, &other.0)
+    }
+}
+
+impl CentredBitSource for SignedCoordinate {
+    fn to_centred_bits(&self, n: u32) -> CentredBits {
+        self.0.to_bits().to_centred_bits(n)
+    }
+}
+
+/// The count of observations the root tracker was shown in one report.
+fn root_sample_count<C: Coordinate>(report: &torrust_sentinel::BatchReport<C>) -> usize {
+    report
+        .cell_reports
+        .iter()
+        .chain(report.ancestor_reports.iter())
+        .find(|cell| cell.depth == 0)
+        .expect("the root tracker is permanent and receives every observation")
+        .sample_count
+}
+
+/// Domain membership is decided by comparison against the domain's own bounds,
+/// so a coordinate type the crate does not ship is held to the same domain as
+/// the ones it does. Inferring from the bit width that every representable
+/// value is in the domain holds only for the unsigned types: at a width that
+/// fills a signed or floating type it would admit a value below the origin, a
+/// NaN and an infinity, each of which the spatial layer, the encoder and the
+/// interval scan would then read differently. The comparison is the root cell's
+/// own containment test and the root is permanent, so whatever the boundary
+/// admits the partition delivers — which is the mandatory delivery holding for
+/// any coordinate type a host may bring, not only for the two shipped here.
+///
+/// A NaN needs no case of its own. Every comparison with a NaN is false, so it
+/// is neither at nor above the origin and both arms of the test refuse it.
+///
+/// ´claim:routing:domain-membership-is-decided-by-comparison-for-every-coordinate-type´
+/// ´test:integration:a-signed-coordinate-outside-the-domain-is-counted-nowhere-at-full-width´
+#[test]
+fn a_signed_coordinate_outside_the_domain_is_counted_nowhere_at_full_width() {
+    // At N = 64 the width fills the coordinate type, which is the shape in
+    // which an unsigned coordinate has nothing outside the domain at all. This
+    // type has three: below the origin, comparable with nothing, and above
+    // every bound.
+    let below = SignedCoordinate(-1.0);
+    let nan = SignedCoordinate(f64::NAN);
+    let above = SignedCoordinate(f64::INFINITY);
+    let outside = [below, nan, above];
+
+    let mut s = SpectralSentinel::<SignedCoordinate, u64, 64>::new(test_config()).unwrap();
+
+    let report = s.ingest(&[SignedCoordinate(42.0), below, nan, above]);
+
+    assert_eq!(s.graph().total_sum(), 1, "only the in-domain value moves the graph");
+    assert_eq!(
+        s.lifetime_observations(),
+        1,
+        "and only it is counted against the sentinel's lifetime"
+    );
+    assert_eq!(
+        root_sample_count(&report),
+        1,
+        "the root is shown the in-domain value alone — nothing aliased onto it"
+    );
+
+    // A batch of nothing but such values is the same non-event as an empty
+    // batch, exactly as it is for an unsigned coordinate below the full width.
+    let empty = s.ingest(&outside);
+
+    assert_eq!(s.graph().total_sum(), 1, "the graph total is where the first batch left it");
+    assert_eq!(s.lifetime_observations(), 1, "and so is the lifetime count");
+    assert!(
+        empty.cell_reports.is_empty() && empty.ancestor_reports.is_empty(),
+        "no cell was shown anything, so no cell reports"
+    );
+    assert!(
+        empty.oldest_observation_age_micros.is_none(),
+        "a batch with no observation in it has no oldest observation to age"
+    );
+
+    // The domain's own values are untouched by the test that refuses those:
+    // the origin is inside the domain and so is any finite value below the
+    // upper bound the coordinate type names.
+    let accepted = s.ingest(&[SignedCoordinate(0.0), SignedCoordinate(1e18)]);
+
+    assert_eq!(s.graph().total_sum(), 3, "the origin and an ordinary value are observations");
+    assert_eq!(s.lifetime_observations(), 3, "and both are counted");
+    assert_eq!(root_sample_count(&accepted), 2, "and both reach the root");
+}
+
+/// Below the full width the lower bound is what refuses a coordinate the domain
+/// cannot name. The upper bound is a representable value there and stays
+/// exclusive for every coordinate type, so a negative is rejected exactly as
+/// the first value above the domain already is — a width narrower than the
+/// coordinate type is not a case the old reading got right either, because a
+/// comparison against the upper bound alone has no lower bound at all.
+///
+/// (´claim:routing:domain-membership-is-decided-by-comparison-for-every-coordinate-type´)
+/// ´test:integration:a-signed-coordinate-below-the-origin-is-counted-nowhere-at-a-narrow-width´
+#[test]
+fn a_signed_coordinate_below_the_origin_is_counted_nowhere_at_a_narrow_width() {
+    // At N = 8 the domain is [0, 256): 256 is the first value above it and −1
+    // the first below.
+    let mut s = SpectralSentinel::<SignedCoordinate, u64, 8>::new(test_config()).unwrap();
+
+    let report = s.ingest(&[SignedCoordinate(-1.0), SignedCoordinate(42.0), SignedCoordinate(256.0)]);
+
+    assert_eq!(s.graph().total_sum(), 1, "only the in-domain value moves the graph");
+    assert_eq!(
+        s.lifetime_observations(),
+        1,
+        "and only it is counted against the sentinel's lifetime"
+    );
+    assert_eq!(
+        root_sample_count(&report),
+        1,
+        "the value below the origin is refused as the one above the bound is"
+    );
 }
