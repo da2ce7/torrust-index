@@ -24,6 +24,7 @@
 //! | [`values_outside_the_domain_are_counted_nowhere`] | routing | A coordinate the domain cannot name is not an observation of it, and the three layers that would each read it differently are not left to disagree about that. The spatial layer accumulates such a value in the topmost cell, whose interval does not contain it; the encoder reads the low bits of the configured width, so it would hand a tracker the vector of the in-domain value the arrival is congruent to; and the interval scan matches no cell at all, not even the root. Deciding membership once, before any of them, is what keeps the counts one count: the value raises no total, moves no partition and reaches no tracker. |
 //! | [`a_signed_coordinate_outside_the_domain_is_counted_nowhere_at_full_width`] | routing | Domain membership is decided by comparison against the domain's own bounds, so a coordinate type the crate does not ship is held to the same domain as the ones it does. The bridge into centred bits is public and nothing closes the set of its implementations, and the coordinate trait is implemented for the floats as well as the unsigned integers, so a host's coordinates may be signed and NaN-capable. Inferring from the bit width that every representable value is in the domain holds only for the unsigned types: at a width that fills a signed or floating type it would admit a value below the origin, a NaN and an infinity. The comparison is the root cell's own containment test and the root is permanent, so whatever the boundary admits the partition delivers, for any coordinate type a host may bring. |
 //! | [`a_signed_coordinate_below_the_origin_is_counted_nowhere_at_a_narrow_width`] | routing | cites (´claim:routing:domain-membership-is-decided-by-comparison-for-every-coordinate-type´) |
+//! | [`a_signed_coordinate_at_the_exclusive_bound_is_counted_nowhere_at_full_width`] | routing | cites (´claim:routing:domain-membership-is-decided-by-comparison-for-every-coordinate-type´) |
 
 //! Graph routing — how an observed value reaches the cell that will
 //! analyse it.
@@ -670,5 +671,73 @@ fn a_signed_coordinate_below_the_origin_is_counted_nowhere_at_a_narrow_width() {
         root_sample_count(&report),
         1,
         "the value below the origin is refused as the one above the bound is"
+    );
+}
+
+/// The inclusive reading of the domain's upper bound belongs to the integer
+/// coordinates, where `domain_max` substitutes the type's maximum because
+/// `2^N` is not representable: there the bound names the last value of the
+/// domain and the topmost cell has to own it. A continuous coordinate carries
+/// no such substitution — `2^N` is representable and `domain_max` returns it —
+/// so at the full width it is the first value above the domain exactly as it
+/// is at a narrow one. Taking the exception from the width alone does not tell
+/// the two apart: it would admit that value, raise both totals and hand the
+/// topmost cell an arrival its interval does not contain. Asking instead
+/// whether the unit interval is indivisible at depth zero separates them by
+/// the property that actually differs, so a type whose bound is exclusive
+/// keeps it exclusive at every width.
+///
+/// The integer half of the reading is unchanged and is held by two tests named
+/// elsewhere in this file: `top_of_domain_coordinate_routes_to_a_cell`, where
+/// the maximum of a full-width unsigned domain does reach a tracker, and
+/// `values_outside_the_domain_are_counted_nowhere`, where the first value
+/// above a narrower unsigned domain does not.
+///
+/// (´claim:routing:domain-membership-is-decided-by-comparison-for-every-coordinate-type´)
+/// ´test:integration:a-signed-coordinate-at-the-exclusive-bound-is-counted-nowhere-at-full-width´
+#[test]
+fn a_signed_coordinate_at_the_exclusive_bound_is_counted_nowhere_at_full_width() {
+    // 18_446_744_073_709_551_616 is 2^64. A power of two is exact in a binary
+    // float whenever its exponent is in range, and 64 is far inside `f64`'s,
+    // so the literal is the bound itself rather than a neighbour of it and the
+    // equality the domain boundary tests is the exact one. The assertion below
+    // holds the literal to that: it is the same value the partition's topmost
+    // interval is built from.
+    let bound = SignedCoordinate(18_446_744_073_709_551_616.0);
+    assert_eq!(
+        bound,
+        <SignedCoordinate as Coordinate>::domain_max(64),
+        "the literal is the upper bound of the domain at the full width"
+    );
+
+    let mut s = SpectralSentinel::<SignedCoordinate, u64, 64>::new(test_config()).unwrap();
+
+    let report = s.ingest(&[SignedCoordinate(42.0), bound]);
+
+    assert_eq!(s.graph().total_sum(), 1, "only the in-domain value moves the graph");
+    assert_eq!(
+        s.lifetime_observations(),
+        1,
+        "and only it is counted against the sentinel's lifetime"
+    );
+    assert_eq!(
+        root_sample_count(&report),
+        1,
+        "the root is shown the in-domain value alone — no cell owns a bound that is outside the domain"
+    );
+
+    // A batch of nothing but the bound is the same non-event as an empty
+    // batch, exactly as a batch above a narrower domain is.
+    let empty = s.ingest(&[bound]);
+
+    assert_eq!(s.graph().total_sum(), 1, "the graph total is where the first batch left it");
+    assert_eq!(s.lifetime_observations(), 1, "and so is the lifetime count");
+    assert!(
+        empty.cell_reports.is_empty() && empty.ancestor_reports.is_empty(),
+        "no cell was shown anything, so no cell reports"
+    );
+    assert!(
+        empty.oldest_observation_age_micros.is_none(),
+        "a batch with no observation in it has no oldest observation to age"
     );
 }

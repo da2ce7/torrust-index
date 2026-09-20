@@ -531,6 +531,39 @@ where
         }
     }
 
+    /// Whether the value [`Coordinate::domain_max`] names at this width is
+    /// itself a value of the domain rather than the first value above it
+    /// (§ALGO S-2.1).
+    ///
+    /// `domain_max(n)` is documented as the exclusive upper bound `2^n`, with
+    /// one exception: for integer types at `n == Self::BITS` it returns the
+    /// type's maximum, because `2^BITS` is not representable there. At that
+    /// width the value it names is the last value of the domain — the
+    /// partition's topmost cell ends on it, and it must be admitted, routed
+    /// and delivered like any other observation. Every other implementor
+    /// keeps the bound exclusive at every width, the floats included: theirs
+    /// is `2^n` for every `n`, so at the full width `2^BITS` is a
+    /// representable value outside `[0, 2^N)`.
+    ///
+    /// The exception therefore belongs to the coordinate type and not to the
+    /// width, and `N == C::BITS` alone does not distinguish them: read that
+    /// way it admits a value the domain does not contain on a continuous type
+    /// and on any a host writes. The question is put to the trait rather than
+    /// to a list of types. The unit interval `[0, 1)` is indivisible at depth
+    /// zero for exactly the coordinates that subdivide down to single values,
+    /// which are the ones whose `domain_max` carries the substitution:
+    /// [`Coordinate::is_final`] is `width == 1` for the integers and
+    /// `depth >= n` for the continuous coordinates, which at depth zero is
+    /// false for every width a sentinel can be built at.
+    ///
+    /// The three layers that meet the top of the domain ask this one
+    /// question, so none of them can part from the others over it: the
+    /// boundary that admits a value, the interval scan that must then deliver
+    /// it, and the conversion from a spatial bound to a scoring bound.
+    fn domain_top_is_in_domain() -> bool {
+        N == C::BITS && C::is_final(C::zero(), C::from_u64(1), 0, N)
+    }
+
     /// Whether `value` lies in the observation domain `[0, 2^N)` (§ALGO S-2.1).
     ///
     /// Membership is decided by comparison against the domain's own bounds and
@@ -555,22 +588,25 @@ where
     /// `route_and_score` matches in at least one cell, and the mandatory
     /// delivery of §ALGO S-9.3 holds however the host spells its coordinates.
     ///
-    /// The upper bound is exclusive, with the one exception the partition
-    /// already makes for itself: at a width that fills the coordinate type
-    /// there is no value above `domain_max(N)` to serve as an exclusive bound,
-    /// so the cell ending at the top of the domain owns it and this admits it
-    /// (the same reading `route_and_score` takes through `owns_domain_top`).
-    /// The domain's upper bound is whatever that type's `domain_max` names —
-    /// the maximum for the unsigned implementations, `2^BITS` for the floats —
-    /// because the topmost interval is built from the same call. At a narrower
-    /// width the bound is a representable value outside the domain and stays
-    /// exclusive.
+    /// The upper bound is exclusive, with the one exception the coordinate
+    /// type makes for itself: where `domain_max(N)` names a value of the
+    /// domain rather than the first value above it, the cell ending at the top
+    /// of the domain owns that value and this admits it — the same reading
+    /// `route_and_score` takes through `owns_domain_top`, and the same
+    /// question both put to `domain_top_is_in_domain`. That is the integer
+    /// case at a width that fills the type, where `2^N` is not representable
+    /// and the maximum stands in for it. Wherever the bound stays exclusive —
+    /// every narrower width, and a continuous or host-written type at any
+    /// width, the full one included — it is a representable value outside the
+    /// domain and is refused here, because admitting it would raise both
+    /// totals and hand the topmost cell an arrival its interval does not
+    /// contain.
     ///
     /// A NaN needs no arm of its own: every comparison with a NaN is false, so
     /// it is neither at nor above the origin and both arms refuse it.
     fn in_domain(value: C) -> bool {
         let domain_top = C::domain_max(N);
-        value >= C::zero() && (value < domain_top || (N == C::BITS && value == domain_top))
+        value >= C::zero() && (value < domain_top || (Self::domain_top_is_in_domain() && value == domain_top))
     }
 
     /// The batch restricted to the domain, or `None` when it is already the
@@ -1172,11 +1208,11 @@ where
         // the lower scoring cell: otherwise the uppermost cell contains
         // 2^(N-d) + 1 values, which cannot fit in N-d binary suffix bits.
         // Preserve the root's endpoints and its inclusive MAX exception.
-        // The unit interval is final for integer coordinates even at depth
-        // zero; continuous coordinates terminate by depth instead, so their
-        // bounds stay untouched and their unsupported successor is not used.
-        let full_width_integer = N == C::BITS && C::is_final(C::zero(), C::from_u64(1), 0, N);
-        if full_width_integer && bound != C::zero() && bound != C::domain_max(N) {
+        // That exception is the one `domain_top_is_in_domain` decides, and it
+        // is the integer case: a continuous coordinate keeps an exclusive
+        // bound at every width, so its bounds stay untouched and the successor
+        // it does not support is never asked for.
+        if Self::domain_top_is_in_domain() && bound != C::zero() && bound != C::domain_max(N) {
             bound.next_value()
         } else {
             bound
@@ -1376,18 +1412,20 @@ where
         let mut cell_obs: BTreeMap<GNodeId, Vec<usize>> = BTreeMap::new();
 
         // Cell intervals are half-open, which needs one exception at the very
-        // top of the domain. When the coordinate width fills the coordinate
-        // type there is no value above the maximum to serve as an exclusive
-        // bound, so a half-open reading of the topmost interval excludes a
-        // coordinate that is genuinely inside the domain. That observation is
-        // still counted — it moves the spatial layer and it raises the
-        // lifetime total — so leaving it unrouted drops a real observation
-        // from every tracker while the totals go on including it. The cell
-        // ending at the top of the domain therefore owns its upper bound.
-        // Every other boundary stays half-open, so no coordinate can fall in
-        // two sibling cells, and where the width is narrower than the type the
-        // bound is a representable value outside the domain and stays
-        // exclusive.
+        // top of the domain. Where `domain_max(N)` names a value of the domain
+        // rather than the first value above it — the integer case at a width
+        // that fills the type, where `2^N` is not representable — a half-open
+        // reading of the topmost interval excludes a coordinate that is
+        // genuinely inside the domain. That observation is still counted — it
+        // moves the spatial layer and it raises the lifetime total — so
+        // leaving it unrouted drops a real observation from every tracker
+        // while the totals go on including it. The cell ending at the top of
+        // the domain therefore owns its upper bound. Every other boundary
+        // stays half-open, so no coordinate can fall in two sibling cells, and
+        // wherever the bound stays exclusive — every narrower width, and a
+        // continuous or host-written type at any width — it names a value
+        // outside the domain that the boundary at ingestion has already
+        // refused, so nothing reaches this scan for the exception to admit.
         //
         // Every value that reaches this scan is in the domain, because
         // `ingest` decides that before the spatial layer. That is what makes
@@ -1397,11 +1435,11 @@ where
         // by at least one cell, and the mandatory delivery of §ALGO S-9.3
         // holds. A value outside the domain would be matched by none.
         let domain_top = C::domain_max(N);
-        let width_fills_type = N == C::BITS;
+        let top_is_in_domain = Self::domain_top_is_in_domain();
 
         for (i, &value) in values.iter().enumerate() {
             for (&gnode, cell) in &self.cells {
-                let owns_domain_top = width_fills_type && cell.end == domain_top && value == domain_top;
+                let owns_domain_top = top_is_in_domain && cell.end == domain_top && value == domain_top;
                 if value >= cell.start && (value < cell.end || owns_domain_top) {
                     cell_obs.entry(gnode).or_default().push(i);
                 }
