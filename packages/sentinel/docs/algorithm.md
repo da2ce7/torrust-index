@@ -1810,15 +1810,16 @@ The coordination SVD is at most $(4, K + 4)$ — trivial.
 
 With deferred warm-up (§11.6), the per-call cost of the observation algorithm is bounded by:
 
-$$O\!\Big(n(d_{\text{geo}} + h_V) \;+\; |\mathcal{A}^*| \cdot \min(w_{\max},\, k + b)^2 \cdot \max(w_{\max},\, k + b)\Big)$$
+$$O\!\Big(n(d_{\text{geo}} + h_V) \;+\; |\mathcal{A}^*| \cdot \min(w_{\max},\, k + b)^2 \cdot \max(w_{\max},\, k + b) \;+\; |\mathcal{E}|\log|\mathcal{E}| \;+\; |\mathcal{I}|\log|\mathcal{I}| \;+\; |\mathcal{I}| \cdot w_{\max}\min(w_{\max},\, r_{\max})\Big)$$
 
-on **every** call. (The previous expression $|\mathcal{A}^*| \cdot w_{\max} \cdot (k + b)^2$ is a valid but loose upper bound; the $\min/\max$ form is tight in both the tall-matrix and wide-matrix regimes — see §12.6.) Cell creation and noise injection contribute zero cost to any observation call. The only call-to-call variance arises from:
+on **every** call. (The previous expression $|\mathcal{A}^*| \cdot w_{\max} \cdot (k + b)^2$ is a valid but loose upper bound for the scoring term; the $\min/\max$ form is tight in both the tall-matrix and wide-matrix regimes — see §12.6.) Noise injection contributes zero cost to an observation call: deferred warm-up moves it to the background worker. Cell creation does not — the selection that identifies a new cell and the tracker allocated for it stay on the call, and they are the last three terms. Selection is recomputed after each observation pass, changed or unchanged (§8.1): the eligible set $\mathcal{E}$ is ranked by importance for the top-$K$ cut and closed under ancestry into $\mathcal{I}$ (§8.2), with the entry and exit bookkeeping over both sets absorbed in the $|\mathcal{I}|\log|\mathcal{I}|$ term. The $|\mathcal{E}|\log|\mathcal{E}|$ ranking term is the cost of that recomputation; an implementation maintaining $\mathcal{T}$ incrementally (§8.1) pays for the ranking during rebalancing instead. Allocation gives each cell entering $\mathcal{I}$ a $w \times \text{cap}$ basis and the latent state beside it (§4.1), $\text{cap} = \min(w, r_{\max})$; its multiplier is the number of cells entering on the call — none on a typical call, at most $|\mathcal{I}| \leq 1 + K\bar{D}$ when the selection turns over entirely (§8.2). The call-to-call variance arises from:
 
 - **Batch size variation** ($b$ differs per cell and per call; $n$ differs between calls).
 - **Producing set size variation** ($|\mathcal{A}^*|$ changes by $O(1)$ per call as cells promote or exit via investment set reconciliation).
 - **Rank variation** ($k$ changes by at most 1 per rank update interval).
+- **Entering cell count** (zero on a call that leaves the selection unchanged; bounded by $|\mathcal{I}|$ on one that changes it).
 
-All three change slowly relative to call frequency.
+The first three change slowly relative to call frequency. The fourth does not: it is zero on most calls and a bounded burst on the calls that change the selection, paid once per cell entry against the whole warm-up schedule that entry commits to (§11.6).
 
 > _Design note._ The deferred warm-up removes the dominant structural source of timing variance (inline noise injection), making the observation algorithm operationally predictable. It does **not** make it constant-time — the remaining variance, though small, is observable to a sufficiently precise adversary. Constant-time guarantees, if required, are an implementation concern beyond this specification.
 

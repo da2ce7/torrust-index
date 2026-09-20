@@ -57,9 +57,15 @@ When `background_warming` is disabled, warm-up runs synchronously within `reconc
 
 With warm-up deferred to the background worker, the per-call cost of `ingest()` is bounded by:
 
-$$O\!\Big(n(d_{\text{geo}} + h_V) \;+\; |\mathcal{A}^*| \cdot w_{\max} \cdot (k + b)^2\Big)$$
+$$O\!\Big(n(d_{\text{geo}} + h_V) \;+\; |\mathcal{A}^*| \cdot w_{\max} \cdot (k + b)^2 \;+\; |\mathcal{E}|\log|\mathcal{E}| \;+\; |\mathcal{I}|\log|\mathcal{I}| \;+\; |\mathcal{I}| \cdot w_{\max}\min(w_{\max},\, r_{\max})\Big)$$
 
-on every call. Cell creation and noise injection contribute zero cost. The remaining call-to-call variance (batch size, analysis set size, rank) changes slowly relative to call frequency.
+on every call. What deferral takes off the call is the noise injection, and only that: it contributes zero cost here because the background worker runs it. Cell creation is not free — the selection that identifies a new cell and the tracker allocated for it both stay in line, and they are the last three terms.
+
+Selection is recomputed from the graph on every call, whatever the batch and whether or not the selection changes: the eligible entries $\mathcal{E}$ within the depth cutoff are ranked by importance for the top-$K$ cut (§ALGO S-8.1), then closed under G-tree ancestry into $\mathcal{I}$ (§ALGO S-8.2), which is the $|\mathcal{E}|\log|\mathcal{E}| + |\mathcal{I}|\log|\mathcal{I}|$ pair — independent of $n$, and the same on a call that changes nothing. The entry and exit bookkeeping over the two sets, the staging pass that refreshes cached volumes, and the promotion of cells the worker finished are all $O(|\mathcal{I}|)$ map operations and are absorbed in the second of those terms. §ALGO S-8.1 permits maintaining the competitive targets incrementally instead; this engine ranks them afresh, and the term is what that costs.
+
+Tracker allocation is per entering cell: a $w \times \text{cap}$ basis with the latent vectors and second-moment triangle beside it (§ALGO S-4.1), where $\text{cap} = \min(w, r_{\max})$, so $O(w_{\max}\min(w_{\max},\, r_{\max}))$ apiece. The multiplier above is the worst case rather than the ordinary one: a typical call enters no cell and allocates nothing, and only a call that re-selects the whole set enters $|\mathcal{I}| \leq 1 + K\bar{D}$ of them (§ALGO S-8.2). Allocation happens once per entry into $\mathcal{I}$, against the tens to hundreds of noise rounds the depth-tiered schedule then runs for that one cell (ADR-S-015), which is why moving the rounds off the call was worth doing and leaving the allocation on it is not a defect.
+
+Both added groups are bounded by the selector's parameters rather than by traffic, which is what keeps the call predictable; neither is zero. The call-to-call variance from batch size, analysis set size and rank changes slowly relative to call frequency. The allocation term does not vary smoothly at all: it is zero on most calls and a bounded burst on the calls that change the selection.
 
 ## Timing Protection Is Out of Scope (§ALGO S-12.9) · `sec:sentinel:deferredwarmup-timing-protection-out-of-scope`
 
@@ -67,7 +73,7 @@ Deferred warm-up makes `ingest()` operationally predictable — bounded work per
 
 ## Consequences · `sec:sentinel:deferredwarmup-consequences`
 
-- With `background_warming` enabled, `ingest()` has bounded, predictable work per call: cell creation and noise injection never stall the hot path. The flag defaults to disabled, and there the bound does not hold — reconciliation drains the staging area in line, warming every newly staged cell to completion before `ingest()` returns, which is the stall this record's context describes. That is the price of the fallback rather than a defect in it: synchronous warm-up buys single-threaded determinism with exactly the latency the background path moves off the call.
+- With `background_warming` enabled, `ingest()` has bounded, predictable work per call: noise injection never stalls the hot path, and what cell creation leaves on it — one selection pass, and one tracker allocation per entering cell — is bounded by the selector's parameters rather than by the warm-up schedule. The flag defaults to disabled, and there the bound does not hold — reconciliation drains the staging area in line, warming every newly staged cell to completion before `ingest()` returns, which is the stall this record's context describes. That is the price of the fallback rather than a defect in it: synchronous warm-up buys single-threaded determinism with exactly the latency the background path moves off the call.
 
 - A background thread (or synchronous fallback) is required for warming. The interaction surface is minimal: a staging map with atomic promotion at the top of each `ingest()` call.
 
