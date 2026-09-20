@@ -11,7 +11,7 @@
 //! | [`new_panics_on_dim_one_debug`] | subspace | cites (´claim:subspace:a-width-below-the-minimum-is-a-callers-fault-caught-in-debug-rather-than-a-state-to-accommodate´) |
 //! | [`dim_and_cap_reflect_construction`] | subspace | A cell's rank ceiling is the lesser of the configured maximum and its own width: a wide cell is capped by policy, a narrow one by geometry. There are no more independent directions than dimensions to hold them, so the width binds where it is the smaller of the two, and one configuration can serve cells of every depth without being retuned per depth. |
 //! | [`scoring_geometry_matches_state`] | subspace | A model reports the geometry its scores were computed in: the width it works over, the ceiling it may grow to, and the residual degrees of freedom left after the claimed directions are removed. That last figure is the divisor novelty is normalised by, so publishing it lets a host compare scores from cells of different depths and ranks instead of comparing numbers whose scale it cannot see. |
-//! | [`observe_returns_correct_depth`] | subspace | A report carries back the depth it was given, unchanged, alongside the rank in force while the batch was scored — and that rank is the one the model held beforehand, since adaptation happens after scoring. The model has no idea which cell it serves, so the depth is a label it holds on the host's behalf, which is what lets a host attribute a report without keeping its own bookkeeping alongside every call. |
+//! | [`observe_returns_the_scoring_rank`] | subspace | A report carries the rank that was in force while the batch was scored, which on an unadapted model is the rank it was built with: adaptation happens after scoring, so a report never describes a model that did not produce it. The tracker is told which depth it serves but keeps that to itself — the depth reaches a host on the cell report, which is assembled from the cell rather than echoed back from the model. |
 //! | [`rank_change_report_describes_the_scoring_state`] | subspace | On a batch that changes rank, the report and the tracker's geometry snapshot keep the earlier rank and residual degrees of freedom that normalised novelty, while the current rank advances for the next batch. Multiplying novelty by the published residual degrees of freedom recovers the residual energy, so the geometry beside the score can be used to reconstruct its scale. |
 //! | [`non_adapting_batch_reports_current_rank_as_scoring_rank`] | subspace | When the adaptation interval does not fall on a batch, the current model and the scoring snapshot agree: the report rank equals the tracker's rank and its residual degrees of freedom are derived from that same rank. |
 //! | [`observe_per_sample_when_enabled`] | subspace | Per-row detail is produced only where a cell is configured to want it. Building it costs a standardisation of every axis for every row, which is worth paying when a host needs to know which observation in a batch was responsible and wasted when it only needs the batch's summary — so the choice is made per configuration rather than always. |
@@ -246,24 +246,23 @@ fn scoring_geometry_matches_state() {
 //  Observe — report structure
 // ════════════════════════════════════════════════════════════
 
-/// A report carries back the depth it was given, unchanged, alongside the rank
-/// in force while the batch was scored — and that rank is the one the model
-/// held beforehand, since adaptation happens after scoring. The model has no
-/// idea which cell it serves, so the depth is a label it holds on the host's
-/// behalf, which is what lets a host attribute a report without keeping its
-/// own bookkeeping alongside every call.
+/// A report carries the rank that was in force while the batch was scored,
+/// which on an unadapted model is the rank it was built with: adaptation
+/// happens after scoring, so a report never describes a model that did not
+/// produce it. The tracker is told which depth it serves but keeps that to
+/// itself — the depth reaches a host on the cell report, which is assembled
+/// from the cell rather than echoed back from the model.
 ///
-/// ´claim:subspace:a-report-carries-back-the-depth-it-was-given-and-the-rank-that-scored-the-batch´
-/// ´test:crate:observe-returns-correct-depth´
+/// ´claim:subspace:a-report-carries-the-rank-that-scored-the-batch´
+/// ´test:crate:observe-returns-the-scoring-rank´
 #[test]
-fn observe_returns_correct_depth() {
+fn observe_returns_the_scoring_rank() {
     let cfg = cfg_per_sample();
     let mut t = SubspaceTracker::new(8, &cfg, 0.999);
 
     let rows = centred_rows(&[0x0123_4567_89AB_CDEF_0123_4567_89AB_CDEF], 8);
     let report = t.observe(&as_slices(&rows), 8, false);
 
-    assert_eq!(report.depth, 8);
     assert_eq!(report.rank, 1); // hasn't adapted yet
 }
 

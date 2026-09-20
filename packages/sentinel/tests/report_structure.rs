@@ -29,7 +29,6 @@
 //! | [`analysis_set_summary_investment_covers_full`] | readout | The investment set is never smaller than the set currently producing reports. Every cell that reports has a tracker, and some cells hold trackers that are still warming and not yet contributing — so the gap between the two figures is precisely the modelling the sentinel is paying for but not yet reading from. |
 //! | [`analysis_width_on_cell_report`] | readout | A cell's reported analysis width is always the domain width less its depth, for competitive and ancestor cells alike. The leading bits that routing already fixed are constant within the cell and carry no information, so the width states exactly how many bits the cell's model had left to work with — which is what a host needs to compare scores from cells at different depths. |
 //! | [`analysis_width_on_cell_inspection`] | readout | cites (´claim:readout:a-cells-reported-analysis-width-is-the-domain-width-less-its-depth´) |
-//! | [`tracker_report_type_exists`] | readout | The per-tracker report type is reachable from outside the crate through the flat public surface, named in a function signature that a downstream consumer could write. Modules are crate-private and types are re-exported at the root, so there is exactly one import path per public type — and a type that quietly stopped being re-exported would break consumers without breaking anything inside the crate. |
 //! | [`batch_report_states_the_age_of_its_oldest_observation`] | readout | A report says how old its evidence was at the moment it was emitted: the batch is stamped as it arrives and the figure is read off as the report is assembled, so it is a positive interval that never exceeds the call that produced it. Both ends of the measurement are the sentinel's own monotonic clock, so a host learns the age of what it is holding without either side having to trust the other's idea of the time. |
 //! | [`batch_report_age_is_scoped_to_its_own_batch`] | readout | The age belongs to the batch that carried the observations rather than running from the sentinel's own beginning: after a silence, the next batch reports an age shorter than the silence that preceded it. An age that accumulated over uptime would answer how long the sentinel had been running, which is the wrong question — what a host needs is how stale the evidence in front of it is. |
 //! | [`empty_ingest_reports_no_observation_age`] | readout | A batch with no observations has no oldest observation, so it reports no age at all rather than an age of nothing. Absence and instantaneity are different facts about a report and a zero would have conflated them: a host watching for stale evidence has to be able to tell "nothing arrived" from "what arrived was fresh". |
@@ -70,7 +69,7 @@ mod common;
 
 use std::time::{Duration, Instant};
 
-use common::{ScenarioBuilder, assert_invariants, cell_values, seeded_sentinel, test_config};
+use common::{ScenarioBuilder, assert_invariants, cell_values, test_config};
 use torrust_sentinel::Sentinel128;
 
 // ── Helper ──────────────────────────────────────────────────
@@ -682,29 +681,6 @@ fn analysis_width_on_cell_inspection() {
             inspection.depth,
         );
     }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Type naming
-// ═══════════════════════════════════════════════════════════
-
-/// The per-tracker report type is reachable from outside the crate through
-/// the flat public surface, named in a function signature that a downstream
-/// consumer could write. Modules are crate-private and types are re-exported
-/// at the root, so there is exactly one import path per public type — and a
-/// type that quietly stopped being re-exported would break consumers without
-/// breaking anything inside the crate.
-///
-/// ´claim:readout:the-per-tracker-report-type-is-reachable-through-the-crates-flat-public-surface´
-/// ´test:integration:tracker-report-type-exists´
-#[test]
-fn tracker_report_type_exists() {
-    // Compile-time check: `TrackerReport` exists in the public API.
-    fn _assert_type_exists(_: torrust_sentinel::TrackerReport) {}
-
-    // Verify a sentinel can be constructed, confirming the type is
-    // reachable through the public module.
-    let _s = seeded_sentinel();
 }
 
 // ═══════════════════════════════════════════════════════════

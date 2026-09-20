@@ -88,10 +88,6 @@
 //!   [`CentredBitSource`], and [`GNodeId`] for subtree decay calls.
 //! - **Surface 3 — Internals:** EWMA state, SVD update plumbing, tracker
 //!   machinery, staging, CUSUM, and warming-thread implementation details.
-//!
-//! Exception: a few support types are re-exported as `#[doc(hidden)]` for
-//! tests, diagnostics, and benchmarks. They are not part of the ordinary
-//! downstream API surface.
 
 // -- Surface 1 — Readouts (data users hold and inspect) -----------
 //
@@ -145,14 +141,8 @@ mod tests;
 //   mudlark:      GNodeId for subtree-oriented operations
 pub use analysis_set::{AnalysisEntry, AnalysisSet};
 pub use config::{ConfigError, ConfigErrors, ConfigWarning, NoiseSchedule, SentinelConfig};
-#[doc(hidden)]
-pub use ewma::EwmaStats;
-#[doc(hidden)]
-pub use maths::SubspaceUpdate;
 pub use maths::SvdStrategy;
 pub use observation::{CentredBitSource, CentredBits};
-#[doc(hidden)]
-pub use report::TrackerReport;
 pub use report::{
     AnalysisSetSummary, AnomalyScores, AxisBaselineSnapshots, BaselineSnapshot, BatchReport, CellInspection, CellReport,
     ClipPressureDistribution, ContourSnapshot, CoordinationHealth, CoordinationReport, CusumSnapshot, GeometryDistribution,

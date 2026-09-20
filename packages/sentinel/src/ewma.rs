@@ -64,6 +64,11 @@ impl EwmaStats {
     }
 
     /// Whether the baseline has seen at least one update.
+    ///
+    /// Compiled for the crate's own tests only. The baseline pipeline acts on
+    /// the warm flag from inside the update path rather than asking for it, so
+    /// the accessor exists to let a test state what a run never needs to ask.
+    #[cfg(test)]
     #[must_use]
     pub const fn is_warm(&self) -> bool {
         self.warm
@@ -72,7 +77,7 @@ impl EwmaStats {
     /// Return to the cold state — as if freshly constructed.
     ///
     /// Restores the placeholder mean and variance and marks the
-    /// tracker as cold.  The next [`update`](Self::update) will
+    /// tracker as cold.  The next [`update_raw`](Self::update_raw) will
     /// enter the cold→warm initialisation path.
     pub const fn reset_cold(&mut self) {
         self.mean = 1.0;
@@ -193,6 +198,14 @@ impl EwmaStats {
     /// the tracker is still cold). The initial `mean = 1.0` /
     /// `variance = 1.0` are placeholders, not a real baseline — you
     /// can't define "outlier" without one.
+    ///
+    /// Compiled for the crate's own tests only. The baseline pipeline computes
+    /// one shared clip filter per axis and calls
+    /// [`update_raw`](Self::update_raw) with the retained values, as ADR-S-020
+    /// decided; this self-contained form survives because a test of the filter
+    /// wants the filter and the update in one call, which no production caller
+    /// does.
+    #[cfg(test)]
     pub fn update(&mut self, values: &[f64], clip_sigmas: f64) {
         if values.is_empty() {
             return;

@@ -226,10 +226,6 @@ pub struct CoordinationReport<C: Copy + Debug> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TrackerReport {
-    /// The suffix depth `d`. The tracker analyses suffix bits `[d, N)`
-    /// at width `w = N − d` (§ALGO S-2.4).
-    pub depth: u8,
-
     /// Rank in force while this batch was scored (number of active basis vectors).
     pub rank: usize,
 

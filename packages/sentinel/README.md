@@ -20,7 +20,7 @@ Spectral Sentinel's advantage is online multi-scale measurement: it lets Mudlark
 
 This crate follows [Semantic Versioning](https://semver.org/). The public API surface documented in [docs/api.md](docs/api.md) — every type, trait, and method re-exported from the crate root — is covered by semver guarantees from 1.0.0 onwards.
 
-Internal machinery (`pub(crate)` modules, hidden test affordances, EWMA state, tracker internals, staging, and SVD plumbing) is not part of the public API and may change in any release.
+Internal machinery (`pub(crate)` modules, EWMA state, tracker internals, staging, and SVD plumbing) is not part of the public API and may change in any release.
 
 **MSRV:** 1.90 — inherited from the workspace `rust-version` under ADR-T-011 and tested in CI.
 

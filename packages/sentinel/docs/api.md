@@ -108,7 +108,7 @@ pub use sentinel::SpectralSentinel;
 // Not re-exported: MIN_TRACKER_DIM (pub(crate) const).
 ```
 
-Hidden compatibility/testing affordances may also be re-exported with `#[doc(hidden)]`; they are not part of the stable public surface.
+The crate root re-exports nothing hidden: the list above is the whole of it. Internal machinery — EWMA state, SVD update plumbing, the per-tracker report, the tracker itself, staging, and CUSUM — lives in crate-private modules and is reachable by no path from outside the crate, so every name a consumer can write is a name the crate supports under the stability guarantee.
 
 The type aliases wrap `SpectralSentinel<C, V, N>` for the most common domain widths:
 

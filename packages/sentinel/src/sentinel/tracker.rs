@@ -339,7 +339,6 @@ impl SubspaceTracker {
         self.update_maturity(b, is_noise);
 
         TrackerReport {
-            depth,
             rank: scoring_rank,
             energy_ratio: scoring_energy_ratio,
             top_singular_value: scoring_top_singular_value,
