@@ -13,6 +13,15 @@
 //! them (e.g. IPv6 addresses). The host is responsible for ensuring
 //! this property before handing values to the sentinel.
 //!
+//! The conversion is defined on the domain `[0, 2^N)` (§ALGO S-2.1) and
+//! reads a value's low `N` bits, so a value at or above `2^N` would come
+//! back as the in-domain value it is congruent to: a genuine observation's
+//! vector, produced from something that is not that observation. Nothing at
+//! this boundary can tell the two apart, which is why domain membership is
+//! decided before a value is handed here — the sentinel takes that decision
+//! once, at the public boundary, for this module and for the spatial layer
+//! and the trackers alike.
+//!
 //! Nothing in this module touches `faer`. It produces plain `Vec<f64>`
 //! data that the subspace module consumes.
 

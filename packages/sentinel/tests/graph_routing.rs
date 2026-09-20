@@ -21,6 +21,7 @@
 //! | [`reset_restores_fresh_graph_state`] | routing | Reset discards the partition as well as the evidence: a graph that had split under load comes back as the single root cell of a fresh sentinel, with nothing accumulated and nothing to land in but the root. Structure is derived from observations, so once the observations are dropped there is no refinement left worth preserving, and a reset sentinel cannot be distinguished from a new one by what its graph holds. |
 //! | [`top_of_domain_coordinate_routes_to_a_cell`] | routing | The topmost coordinate of the domain reaches a tracker rather than falling through every cell. Cell intervals are half-open, which has no upper edge case while the coordinate width is narrower than the coordinate type — the bound is then a representable value outside the domain. At the full width the domain's maximum is the type's maximum, there is no value above it to be excluded, and a half-open reading of the topmost interval therefore excludes a coordinate that is genuinely inside the domain. The spatial layer counts that observation either way, so the two readings would disagree: the accumulated total records an arrival that no tracker was ever shown. |
 //! | [`an_ordinary_coordinate_still_lands_in_one_cell`] | routing | cites (´claim:routing:the-domains-top-coordinate-reaches-a-tracker-rather-than-falling-through-every-cell´) |
+//! | [`values_outside_the_domain_are_counted_nowhere`] | routing | A coordinate the domain cannot name is not an observation of it, and the three layers that would each read it differently are not left to disagree about that. The spatial layer accumulates such a value in the topmost cell, whose interval does not contain it; the encoder reads the low bits of the configured width, so it would hand a tracker the vector of the in-domain value the arrival is congruent to; and the interval scan matches no cell at all, not even the root. Deciding membership once, before any of them, is what keeps the counts one count: the value raises no total, moves no partition and reaches no tracker. |
 
 //! Graph routing — how an observed value reaches the cell that will
 //! analyse it.
@@ -373,6 +374,68 @@ fn an_ordinary_coordinate_still_lands_in_one_cell() {
         .map(|c| c.sample_count)
         .sum();
     assert_eq!(routed, 1, "one arrival is shown to one tracker");
+}
+
+/// A coordinate the domain cannot name is not an observation of it, and the
+/// three layers that would each read it differently are not left to disagree
+/// about that. The spatial layer accumulates such a value in the topmost cell,
+/// whose interval does not contain it; the encoder reads the low bits of the
+/// configured width, so it would hand a tracker the vector of the in-domain
+/// value the arrival is congruent to; and the interval scan matches no cell at
+/// all, not even the root. Deciding membership once, before any of them, is
+/// what keeps the counts one count: the value raises no total, moves no
+/// partition and reaches no tracker.
+///
+/// The width here is narrower than the coordinate type, which is the only
+/// shape in which a value outside the domain is representable. At the full
+/// width every value the type can hold is inside the domain, and the tests
+/// named `top_of_domain_coordinate_routes_to_a_cell`,
+/// `an_ordinary_coordinate_still_lands_in_one_cell` and
+/// `lifetime_observations_tracks_total_sum` hold that reading unchanged.
+///
+/// ´claim:routing:a-coordinate-outside-the-domain-is-counted-in-no-total-and-reaches-no-tracker´
+/// ´test:integration:values-outside-the-domain-are-counted-nowhere´
+#[test]
+fn values_outside_the_domain_are_counted_nowhere() {
+    // At N = 8 over a 64-bit coordinate the domain is [0, 256), so 256 is the
+    // first representable value outside it — and the value the 8-bit encoder
+    // would present as zero.
+    let mut s = torrust_sentinel::SpectralSentinel::<u64, u64, 8>::new(test_config()).unwrap();
+
+    let report = s.ingest(&[42, 256]);
+
+    assert_eq!(s.graph().total_sum(), 1, "only the in-domain value moves the graph");
+    assert_eq!(
+        s.lifetime_observations(),
+        1,
+        "and only it is counted against the sentinel's lifetime"
+    );
+
+    let root = report
+        .cell_reports
+        .iter()
+        .chain(report.ancestor_reports.iter())
+        .find(|cell| cell.depth == 0)
+        .expect("the root tracker is permanent and receives every observation");
+    assert_eq!(
+        root.sample_count, 1,
+        "the root is shown the in-domain value alone — nothing aliased onto it"
+    );
+
+    // A batch of nothing but out-of-domain values is the same non-event as an
+    // empty batch: no total moves and the report describes no observation.
+    let empty = s.ingest(&[256, 257, u64::MAX]);
+
+    assert_eq!(s.graph().total_sum(), 1, "the graph total is where the first batch left it");
+    assert_eq!(s.lifetime_observations(), 1, "and so is the lifetime count");
+    assert!(
+        empty.cell_reports.is_empty() && empty.ancestor_reports.is_empty(),
+        "no cell was shown anything, so no cell reports"
+    );
+    assert!(
+        empty.oldest_observation_age_micros.is_none(),
+        "a batch with no observation in it has no oldest observation to age"
+    );
 }
 
 /// Check the first full-width midpoint and the maximum in a fresh engine.

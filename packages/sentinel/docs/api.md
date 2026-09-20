@@ -645,6 +645,8 @@ Process a batch of raw coordinate observations and return a full statistical rep
 2. Routed to every analysis cell whose interval contains it.
 3. Encoded as centred bits and scored against learned subspaces.
 
+Values outside the domain `[0, 2^N)` (§ALGO S-2.1) take none of those steps. Membership is decided before the spatial layer, the encoding and the routing, so such a value raises no total — neither the graph's accumulated importance nor `lifetime_observations` — moves no partition, and reaches no tracker. A batch that loses values this way emits one `tracing` warning naming how many went; the count is not part of the report, which describes the observations the sentinel made. A batch left with nothing produces an empty report.
+
 An empty input slice produces an empty report.
 
 #### `decay(&mut self, attenuation: f64, q: f64)` · `sec:sentinel:api-spectral-sentinel-decay`

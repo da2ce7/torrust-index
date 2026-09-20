@@ -379,13 +379,38 @@ where
     /// analysis cell whose interval contains it. Multi-scale delivery
     /// ensures ancestor cells also receive the observation (§ALGO S-9.3).
     ///
+    /// The domain is `[0, 2^N)` (§ALGO S-2.1). A value outside it is not an
+    /// observation of this sentinel's domain and is dropped here, before the
+    /// spatial layer, the encoding and the routing: it raises no total, moves
+    /// no partition and reaches no tracker. A batch that loses values this way
+    /// emits one warning naming how many went; a batch with nothing left
+    /// produces an empty report.
+    ///
     /// An empty input slice produces an empty report.
     ///
     /// # Panics
     ///
     /// Panics if the internal staging mutex is poisoned.
     pub fn ingest(&mut self, values: &[C]) -> BatchReport<C> {
+        // ── The domain decision (§ALGO S-2.1) ───────────
+        // Taken once, here, because the three layers below read a value
+        // differently and none of them can be the place that decides. The
+        // spatial layer routes a coordinate at or above the domain's
+        // exclusive bound rightward at every level and accumulates it in the
+        // topmost terminal, whose interval does not contain it; the encoder
+        // reads the low N bits, so it would present such a value as the
+        // in-domain value it is congruent to (§ALGO S-2.3); and the interval
+        // scan in `route_and_score` matches no cell at all, not even the root,
+        // so no tracker is shown it. Whichever layer were left to its own
+        // reading, the counts would part: the lifetime total would record an
+        // arrival that the trackers never saw, which is the divergence the
+        // mandatory delivery of §ALGO S-9.3 exists to rule out.
+        let retained = Self::retain_in_domain(values);
+        let values: &[C] = retained.as_deref().unwrap_or(values);
+
         // ── Early return on empty input ─────────────────
+        // A batch left empty by the domain decision arrives here too, and is
+        // the same non-event as a batch that was empty on arrival.
         if values.is_empty() {
             return self.empty_report();
         }
@@ -500,6 +525,39 @@ where
             // of thousands of years away.
             oldest_observation_age_micros: Some(u64::try_from(batch_arrival.elapsed().as_micros()).unwrap_or(u64::MAX)),
         }
+    }
+
+    /// Whether `value` lies in the observation domain `[0, 2^N)` (§ALGO S-2.1).
+    ///
+    /// The bound is exclusive, with the one exception the partition already
+    /// makes for itself: when the coordinate width fills the coordinate type
+    /// there is no value above the maximum to exclude, so every value the type
+    /// can hold is in the domain and the topmost interval owns its upper bound
+    /// (the same reading `route_and_score` takes). At a narrower width the
+    /// bound is a representable value outside the domain and stays exclusive.
+    fn in_domain(value: C) -> bool {
+        N == C::BITS || value < C::domain_max(N)
+    }
+
+    /// The batch restricted to the domain, or `None` when it is already the
+    /// whole batch.
+    ///
+    /// Returning the borrowed case as `None` keeps the ordinary batch — every
+    /// value in the domain, which is every batch at a width that fills the
+    /// coordinate type — from being copied on the observation path.
+    fn retain_in_domain(values: &[C]) -> Option<Vec<C>> {
+        if values.iter().all(|&value| Self::in_domain(value)) {
+            return None;
+        }
+
+        let retained: Vec<C> = values.iter().copied().filter(|&value| Self::in_domain(value)).collect();
+        tracing::warn!(
+            dropped = values.len() - retained.len(),
+            batch = values.len(),
+            width = N,
+            "coordinates outside the domain were dropped: they are counted in no total and reach no tracker"
+        );
+        Some(retained)
     }
 
     /// Produce an operational health snapshot of the sentinel.
@@ -1295,6 +1353,14 @@ where
         // two sibling cells, and where the width is narrower than the type the
         // bound is a representable value outside the domain and stays
         // exclusive.
+        //
+        // Every value that reaches this scan is in the domain, because
+        // `ingest` decides that before the spatial layer. That is what makes
+        // the flat containment test the ancestor walk it stands in for
+        // (ADR-S-010): the root's interval is the whole domain and the root
+        // tracker is permanent (§ALGO S-8.4), so an in-domain value is matched
+        // by at least one cell, and the mandatory delivery of §ALGO S-9.3
+        // holds. A value outside the domain would be matched by none.
         let domain_top = C::domain_max(N);
         let width_fills_type = N == C::BITS;
 
