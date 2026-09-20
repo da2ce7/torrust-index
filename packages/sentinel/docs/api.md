@@ -256,7 +256,7 @@ pub struct AnomalyScores {
 
 All axes share the same polarity: **higher values indicate greater anomalous departure**. This ensures uniform z-score interpretation.
 
-> **Why not projection energy / "normality"?** Under the sentinel's centred binary encoding, every observation has the same L2 norm (`dim / 4`). Projection energy is therefore a perfect affine function of residual energy — it carries zero independent information. See §ALGO S-Appendix B.
+> **Why not projection energy / "normality"?** Under the sentinel's centred binary encoding, every observation has the same L2 norm (`dim / 4`). Projection energy is therefore a perfect affine function of residual energy — it carries zero independent information. See §ALGO S-15.2.
 
 #### `ScoreDistribution` — `Copy` · `sec:sentinel:api-score-distribution`
 
