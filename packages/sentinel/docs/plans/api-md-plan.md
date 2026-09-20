@@ -76,7 +76,7 @@ pub type Sentinel128 = SpectralSentinel<u128, u64, 128>;
 pub type Sentinel64 = SpectralSentinel<u64, u64, 64>;
 ```
 
-The excerpt records the visibility pattern; §4 inventories the complete set of report types re-exported from the crate root. A few support types are also re-exported with `#[doc(hidden)]` for tests, diagnostics, and benchmarks, outside the ordinary downstream API surface.
+The excerpt records the visibility pattern; §4 inventories the complete set of report types re-exported from the crate root. Between them they cover the whole public surface: the crate root exports nothing further, and the internal types the crate-private modules contain are reachable by no path from outside the crate.
 
 ### §4 Surface 1 — Report Types (module `report`) · `sec:sentinel:apiplan-report-types`
 
