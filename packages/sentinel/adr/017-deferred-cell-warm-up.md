@@ -1,0 +1,82 @@
+# ADR-S-017: Deferred Cell Warm-Up · `rec:sentinel:background-priority-warmup-off-ingest-path`
+
+**Status:** Implemented (synchronous fallback + background thread; "No Slot Reservation" superseded by ADR-S-019) **Date:** 2026-03-11 **Revised:** 2026-03-13 **Spec:** §ALGO S-12.9 (work variance and timing considerations) **Relates to:** [ADR-S-007](007-automatic-noise-injection.md) (automatic noise injection), [ADR-S-015](015-cell-creation-performance.md) (cell creation performance), [ADR-S-002](002-feed-forward-invariant.md) (feed-forward invariant), [ADR-S-005](005-deterministic-order-and-thread-safety.md) (deterministic order)
+
+## Context · `sec:sentinel:deferredwarmup-context`
+
+The sentinel's `ingest()` call has **variable latency**. Most calls perform only scoring (fast), but calls that trigger analysis set changes also run noise injection synchronously — up to hundreds of milliseconds per new cell (ADR-S-015). A batch-oriented network monitor that budgets $T$ ms per batch cannot tolerate multi-second stalls from cell creation bursts.
+
+## Decision · `sec:sentinel:deferredwarmup-decision`
+
+**With background warming enabled, noise injection is moved off the `ingest()` hot path.** The same staging lifecycle remains in synchronous mode, but `reconcile_analysis_set()` drains it to completion before `ingest()` returns.
+
+New cells transition through a three-state lifecycle:
+
+```
+    created ──→ warming ──→ online ──→ (destroyed)
+                  │
+                  │  background thread
+                  │  highest g.sum first
+                  ▼
+            noise injection
+```
+
+1. **Created.** The analysis selector identifies a new cell. A `SubspaceTracker` is allocated but receives no noise and no real observations. The cell is enqueued into a staging area.
+
+2. **Warming.** A background thread works on whichever warming cell has the highest `g.sum` (accumulated volume in the G-V Graph), injecting noise batches according to the depth-tiered noise schedule (ADR-S-015). If a higher-priority cell arrives, work switches immediately — the previous cell retains partial progress.
+
+3. **Online.** Noise injection is complete. At the start of the next `ingest()` call, the cell is promoted from the staging area into the live `cells` map and begins receiving real observations.
+
+### Observation Routing During Warm-Up · `sec:sentinel:deferredwarmup-observation-routing`
+
+Observations destined for a warming cell are routed to the nearest **online** ancestor (or to the root if no closer ancestor is online). Scoring quality does not degrade — it stays at the coarser resolution until the child goes online.
+
+### Coordination During Warm-Up · `sec:sentinel:deferredwarmup-coordination`
+
+Warming cells do not activate coordination contexts. Coordination activates only at promotion, at which point the cell's baselines are converged. Each newly activated coordination context runs a cheap inline warm-up (§ALGO S-11.7) using Gamma-sampled synthetic score vectors derived from the participating cells' mature baselines.
+
+### No Slot Reservation · `sec:sentinel:deferredwarmup-no-slot-reservation`
+
+> **Superseded by ADR-S-019.** Warming cells are members of the investment set and hold investment slots because their trackers and warm-up resources have been allocated, but they do not enter the producing sets or hold production slots until they are online. The original paragraph below records the earlier lifecycle terminology.
+
+Warming cells do not hold competitive slots. The analysis set contains only online cells. If a warming cell's G-node is evicted before warm-up completes, the partial work is discarded — the G-V Graph determined the interval no longer warrants a node.
+
+### Priority: Volume-First · `sec:sentinel:deferredwarmup-volume-first-priority`
+
+The priority key is cached `g.sum` first. Volume leads because a shallow cell accumulates everything beneath it, so ordering on volume alone already places an ancestor at or above every cell in its own subtree — the dependency constraint (ancestors online before descendants) as a consequence of the quantity that also measures which cell is worth warming next.
+
+Depth follows, because volume alone does not decide the cases the constraint is about. A path node whose accumulation is entirely the single active cell below it ties with that cell exactly, and cached volume is an approximation of the node sum besides, so equal volumes are the ordinary case on precisely the chains the ordering exists to protect. Comparing depth next resolves the tie toward the shallower cell.
+
+`GNodeId` is last, a deterministic tie-break between cells of one depth rather than a carrier of the ancestor rule. It cannot carry that rule: identifiers order on the arena slot index and the arena reuses freed slots, so a cell created into a recycled slot can hold a smaller identifier than an ancestor allocated before it, and breaking an equal-volume tie on the identifier alone would warm that descendant first.
+
+### Synchronous Fallback · `sec:sentinel:deferredwarmup-synchronous-fallback`
+
+When `background_warming` is disabled, warm-up runs synchronously within `reconcile_analysis_set()`. This preserves deterministic single-threaded behaviour for testing.
+
+## Work Variance Bound (§ALGO S-12.9) · `sec:sentinel:deferredwarmup-work-variance-bound`
+
+With warm-up deferred to the background worker, the per-call cost of `ingest()` is bounded by:
+
+$$O\!\Big(n(d_{\text{geo}} + h_V) \;+\; |\mathcal{A}^*| \cdot w_{\max} \cdot (k + b)^2 \;+\; |\mathcal{E}|\log|\mathcal{E}| \;+\; |\mathcal{I}|\log|\mathcal{I}| \;+\; |\mathcal{I}| \cdot w_{\max}\min(w_{\max},\, r_{\max})\Big)$$
+
+on every call. What deferral takes off the call is the noise injection, and only that: it contributes zero cost here because the background worker runs it. Cell creation is not free — the selection that identifies a new cell and the tracker allocated for it both stay in line, and they are the last three terms.
+
+Selection is recomputed from the graph on every call, whatever the batch and whether or not the selection changes: the eligible entries $\mathcal{E}$ within the depth cutoff are ranked by importance for the top-$K$ cut (§ALGO S-8.1), then closed under G-tree ancestry into $\mathcal{I}$ (§ALGO S-8.2), which is the $|\mathcal{E}|\log|\mathcal{E}| + |\mathcal{I}|\log|\mathcal{I}|$ pair — independent of $n$, and the same on a call that changes nothing. The entry and exit bookkeeping over the two sets, the staging pass that refreshes cached volumes, and the promotion of cells the worker finished are all $O(|\mathcal{I}|)$ map operations and are absorbed in the second of those terms. §ALGO S-8.1 permits maintaining the competitive targets incrementally instead; this engine ranks them afresh, and the term is what that costs.
+
+Tracker allocation is per entering cell: a $w \times \text{cap}$ basis with the latent vectors and second-moment triangle beside it (§ALGO S-4.1), where $\text{cap} = \min(w, r_{\max})$, so $O(w_{\max}\min(w_{\max},\, r_{\max}))$ apiece. The multiplier above is the worst case rather than the ordinary one: a typical call enters no cell and allocates nothing, and only a call that re-selects the whole set enters $|\mathcal{I}| \leq 1 + K\bar{D}$ of them (§ALGO S-8.2). Allocation happens once per entry into $\mathcal{I}$, against the tens to hundreds of noise rounds the depth-tiered schedule then runs for that one cell (ADR-S-015), which is why moving the rounds off the call was worth doing and leaving the allocation on it is not a defect.
+
+Both added groups are bounded by the selector's parameters rather than by traffic, which is what keeps the call predictable; neither is zero. The call-to-call variance from batch size, analysis set size and rank changes slowly relative to call frequency. The allocation term does not vary smoothly at all: it is zero on most calls and a bounded burst on the calls that change the selection.
+
+## Timing Protection Is Out of Scope (§ALGO S-12.9) · `sec:sentinel:deferredwarmup-timing-protection-out-of-scope`
+
+Deferred warm-up makes `ingest()` operationally predictable — bounded work per call with no structural spikes. It does **not** make `ingest()` constant-time. The remaining variance, though small, is observable to a sufficiently precise adversary. Adaptive timing pads and equalization are explicitly out of scope.
+
+## Consequences · `sec:sentinel:deferredwarmup-consequences`
+
+- With `background_warming` enabled, `ingest()` has bounded, predictable work per call: noise injection never stalls the hot path, and what cell creation leaves on it — one selection pass, and one tracker allocation per entering cell — is bounded by the selector's parameters rather than by the warm-up schedule. The flag defaults to disabled, and there the bound does not hold — reconciliation drains the staging area in line, warming every newly staged cell to completion before `ingest()` returns, which is the stall this record's context describes. That is the price of the fallback rather than a defect in it: synchronous warm-up buys single-threaded determinism with exactly the latency the background path moves off the call.
+
+- A background thread (or synchronous fallback) is required for warming. The interaction surface is minimal: a staging map with atomic promotion at the top of each `ingest()` call that carries observations. A batch that is empty — on arrival, or left so by the domain decision — returns the empty report of §ALGO S-9.1 before promotion is reached, so a call with nothing to ingest promotes nothing and the pipeline's own progress is unaffected: warm-up advances independently of observation cadence, and only the transition to online waits for the next call that carries observations. Promotion is gated on ingestion rather than on the clock because a newly online cell must take part in the same call's routing, which an empty call has nothing to offer it.
+
+- ADR-S-007 (automatic noise injection) remains correct — injection is still automatic and internal — but the trigger changes from "inject synchronously at creation" to "enqueue for background injection at creation."
+
+- ADR-S-015 (cell creation performance) is complementary. The depth-tiered noise schedule determines how long background warming takes per cell; the hot-path stall concern is resolved by this ADR.
