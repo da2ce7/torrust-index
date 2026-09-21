@@ -2,7 +2,7 @@
 
 This record states the burn disciplines the package's campaign report and its plans rely on: what a retirement decides, what a register may count, over which trees it counts, how a surface is read, and what a table has to spell before a checker reads it as a tracking declaration. The campaign these governed is finished. The record survives it because the documents that describe the campaign go on citing the disciplines by name, and a description of a retirement that cannot say what a retirement is has stopped being a description.
 
-ADR-T-020, the migration disciplines, is the doctrine these statements descend from, and the four retirements named below are the repository's rather than this package's. What stands here is the part a reader of this package needs in order to follow its own documents.
+The migration disciplines these statements descend from apply across the repository, so the four retirements named below are the repository's rather than this package's. What stands here is the part a reader of this package needs in order to follow its own documents.
 
 **Decision (The superseded reference forms)** · `dec:migration:superseded-forms`
 

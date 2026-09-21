@@ -2,7 +2,7 @@
 
 This record states the documentation, label and layer conventions the package's own documents cite: which occurrences participate, how a citation crosses an owner boundary and when it may, what a claim's area is and what the register of areas has to say, what became of the test monolith, and the discipline a lint exception is held to. Each stands at the length a citing sentence needs and no further, because a restatement longer than that is a second authority rather than a reading of one.
 
-The doctrine these descend from is the repository's and is named rather than reproduced. ADR-T-014, the label calculus, fixes the occurrence grammar and the resolution rules; ADR-T-017, the test-documentation policy, fixes the claim, its area, and the register the areas are curated into; ADR-T-019, the layer owner graph, fixes reach and what an import may cross.
+The doctrine these descend from is the repository's and is named rather than reproduced. The label calculus fixes the occurrence grammar and the resolution rules; the test-documentation policy fixes the claim, its area, and the register the areas are curated into; the layer owner graph fixes reach and what an import may cross; the root's Cross-Reference Conventions register the labelled citation form these rules use.
 
 **Judgment (Participation)** · `judg:labels:participation`
 

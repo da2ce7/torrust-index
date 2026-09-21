@@ -2,7 +2,7 @@
 
 This record states the five pinning programs the package's constants cite. A constant declaration here carries a doc comment naming the identity it declares, the program that derives that identity's pin, and the pin itself. The program is what says which values the constant may hold and how its pin is spelled, so citing one is a check on the value's shape as much as a choice of derivation: a value the cited program refuses is a failure at the declaration rather than a mismatch discovered later.
 
-The programs are not this package's invention. ADR-T-018, the constant label profile, is the doctrine they descend from; it states nine programs, of which the five below are those this crate's constants use, and it owns the argument for pinning a constant at its declaration rather than in a register. What stands here is what a constant's doc comment needs in order to be read, in the vocabulary the package's own sources cite.
+The programs are not this package's invention. The repository's constant-label profile defines nine programs, of which the five below are those this crate's constants use, and fixes the practice of pinning a constant at its declaration rather than in a register. What stands here is what a constant's doc comment needs in order to be read, in the vocabulary the package's own sources cite.
 
 Two conventions run through every program that reads a value. Underscores written as digit separators are removed before anything else, because a separator is a reading aid the value does not carry. A literal carrying a type suffix is refused by every program that reads literals, because the declaration already states the type and a suffix would put one fact in two places where only one of them is read.
 
